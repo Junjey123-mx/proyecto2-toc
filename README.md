@@ -84,3 +84,17 @@ El proyecto se divide en los siguientes componentes:
 
 **CC2019 — Teoría de la Computación**  
 Universidad del Valle de Guatemala
+
+## Referencias bibliográficas
+
+1. GeeksforGeeks. (2025, 15 de julio). *Cocke–Younger–Kasami (CYK) algorithm*. GeeksforGeeks. https://www.geeksforgeeks.org/compiler-design/cocke-younger-kasami-cyk-algorithm/
+
+2. GeeksforGeeks. (2026, 26 de enero). *Dynamic programming or DP*. GeeksforGeeks. https://www.geeksforgeeks.org/dsa/dynamic-programming/
+
+3. GeeksforGeeks. (2026, 14 de febrero). *Classification of context free grammars*. GeeksforGeeks. https://www.geeksforgeeks.org/compiler-design/classification-of-context-free-grammars/
+
+4. Cocke, J., & Schwartz, J. T. (1970). *Programming languages and their compilers: Preliminary notes* (2.ª ed. rev.). Courant Institute of Mathematical Sciences, New York University. https://softwarepreservation.computerhistory.org/SETL/precursors/Cocke_Schwartz-Programming_Languages_and_Their_Compilers-1970.pdf
+
+5. Kasami, T. (1966). *An efficient recognition and syntax-analysis algorithm for context-free languages* (Coordinated Science Laboratory Report No. R-257). Coordinated Science Laboratory, University of Illinois at Urbana-Champaign. https://www.ideals.illinois.edu/items/100444
+
+> Las referencias de GeeksforGeeks se utilizan como material introductorio y de consulta. Los trabajos de Cocke y Schwartz y de Kasami corresponden a fuentes históricas primarias relacionadas con el desarrollo de los métodos estudiados.
