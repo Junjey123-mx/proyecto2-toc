@@ -9,6 +9,10 @@ import main
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def terminal(is_tty):
+    return mock.patch("sys.stdin", mock.Mock(isatty=mock.Mock(return_value=is_tty)))
+
+
 def parse_silently(argv):
     with contextlib.redirect_stderr(io.StringIO()):
         return main.parse_arguments(argv)
@@ -89,7 +93,7 @@ class MainModuleTest(unittest.TestCase):
 
     def test_main_exits_cleanly_on_eof(self):
         output = io.StringIO()
-        with mock.patch("builtins.input", side_effect=EOFError), contextlib.redirect_stdout(output):
+        with terminal(False), mock.patch("builtins.input", side_effect=EOFError), contextlib.redirect_stdout(output):
             self.assertEqual(main.main([]), 0)
         self.assertIn("CYK PARSER — TOC", output.getvalue())
 
@@ -98,6 +102,126 @@ class MainModuleTest(unittest.TestCase):
         with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(main.main(["--grammar", str(PROJECT_ROOT / "no_existe.txt")]), 1)
         self.assertTrue(errors.getvalue().startswith("Error: "))
+
+
+class GrammarSourceArgumentsTest(unittest.TestCase):
+    def test_menu_flag(self):
+        self.assertTrue(main.parse_arguments(["--menu"]).menu)
+        self.assertFalse(main.parse_arguments([]).menu)
+
+    def test_menu_and_grammar_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            parse_silently(["--menu", "--grammar", "grammars/english.txt"])
+
+    def test_grammar_given_is_tracked(self):
+        self.assertFalse(main.parse_arguments([]).grammar_given)
+        self.assertTrue(main.parse_arguments(["--grammar", "grammars/english.txt"]).grammar_given)
+
+    def test_menu_activation_rules(self):
+        cases = (
+            ([], True, True),
+            ([], False, False),
+            (["--menu"], False, True),
+            (["--grammar", "grammars/english.txt"], True, False),
+            (["--trace", "--runs", "3"], True, True),
+        )
+        for argv, is_tty, expected in cases:
+            with self.subTest(argv=argv, is_tty=is_tty):
+                with terminal(is_tty):
+                    self.assertEqual(main.uses_menu(main.parse_arguments(argv)), expected)
+
+    def test_non_interactive_default_is_english(self):
+        output = io.StringIO()
+        with terminal(False), mock.patch("builtins.input", side_effect=["she eats a cake", ""]):
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(main.main([]), 0)
+        self.assertIn("Gramática: grammars/english.txt", output.getvalue())
+        self.assertNotIn("SELECCIÓN DE GRAMÁTICA", output.getvalue())
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", output.getvalue())
+
+
+class GrammarMenuTest(unittest.TestCase):
+    def test_bundled_options_map_to_existing_files(self):
+        expected = (
+            "english.txt",
+            "test_lab7.txt",
+            "test_guia.txt",
+            "test_practica.txt",
+            "test_corto_p3.txt",
+            "test_corto_p4.txt",
+            "test_corto_p5.txt",
+            "test_long_rules.txt",
+        )
+        self.assertEqual(tuple(path.name for _, path in main.GRAMMAR_MENU_OPTIONS), expected)
+        for number, (_, path) in enumerate(main.GRAMMAR_MENU_OPTIONS, start=1):
+            with self.subTest(number=number):
+                self.assertTrue(path.is_file())
+                self.assertEqual(main.bundled_grammar_path(str(number)), path)
+
+    def test_default_grammar_is_first_menu_option(self):
+        self.assertEqual(main.DEFAULT_GRAMMAR, main.GRAMMAR_MENU_OPTIONS[0][1])
+
+    def test_menu_lists_every_option(self):
+        menu = main.format_menu()
+        for line in (
+            "SELECCIÓN DE GRAMÁTICA",
+            "1. English",
+            "8. Long Rules",
+            "9. Cargar otro archivo .txt",
+            "10. Ingresar gramática manualmente",
+            "0. Salir",
+        ):
+            self.assertIn(line, menu)
+
+    def test_invalid_choices_are_not_bundled(self):
+        for choice in ("", "abc", "-1", "0", "9", "10", "15", "1.5"):
+            with self.subTest(choice=choice):
+                self.assertIsNone(main.bundled_grammar_path(choice))
+
+    def test_tty_without_arguments_shows_menu_and_exits_on_eof(self):
+        output = io.StringIO()
+        with terminal(True), mock.patch("builtins.input", side_effect=EOFError), contextlib.redirect_stdout(output):
+            self.assertEqual(main.main([]), 0)
+        self.assertIn("SELECCIÓN DE GRAMÁTICA", output.getvalue())
+
+    def test_exit_option_does_not_load_grammar(self):
+        with mock.patch("builtins.input", return_value="0"), mock.patch.object(main, "prepare_grammar") as prepare:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main.main(["--menu"]), 0)
+        prepare.assert_not_called()
+
+    def test_keyboard_interrupt_in_menu_exits_cleanly(self):
+        with mock.patch("builtins.input", side_effect=KeyboardInterrupt), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(main.main(["--menu"]), 0)
+
+
+class ManualGrammarInputTest(unittest.TestCase):
+    def read(self, lines):
+        with mock.patch("builtins.input", side_effect=lines), contextlib.redirect_stdout(io.StringIO()):
+            return main.read_manual_lines()
+
+    def test_stops_at_terminator_without_including_it(self):
+        self.assertEqual(self.read(["S -> a", "FIN", "ignored"]), [(1, "S -> a")])
+
+    def test_terminator_is_case_insensitive(self):
+        for terminator in ("fin", "Fin", "  FIN  "):
+            with self.subTest(terminator=terminator):
+                self.assertEqual(self.read(["S -> a", terminator]), [(1, "S -> a")])
+
+    def test_blank_and_comment_lines_are_kept_for_the_shared_parser(self):
+        self.assertEqual(
+            self.read(["# demo", "", "S -> a", "FIN"]), [(1, "# demo"), (2, ""), (3, "S -> a")]
+        )
+
+    def test_manual_grammar_uses_shared_parser(self):
+        with mock.patch.object(main, "parse_grammar_lines", wraps=main.parse_grammar_lines) as parser:
+            with mock.patch("builtins.input", side_effect=["S -> A B", "A -> a", "B -> b", "FIN"]):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    prepared = main.prepare_menu_choice(main.MANUAL_OPTION)
+        parser.assert_called_once_with([(1, "S -> A B"), (2, "A -> a"), (3, "B -> b")])
+        self.assertEqual(prepared.source, "entrada manual")
+        self.assertEqual(len(prepared.traces), 6)
+        self.assertEqual(prepared.violations, ())
 
 
 if __name__ == "__main__":
