@@ -1,3 +1,7 @@
+from src.model.backpointer import BinaryBackPointer, TerminalBackPointer
+from src.model.production import Production
+
+
 def build_production_indexes(grammar):
     terminal_index = {}
     binary_index = {}
@@ -19,7 +23,7 @@ def build_cyk_table(grammar, tokens):
     table = [[{} for _ in range(size)] for _ in range(size)]
     for position, token in enumerate(tokens):
         for variable in terminal_index.get(token, ()):
-            table[position][position][variable] = None
+            table[position][position].setdefault(variable, TerminalBackPointer(token))
     for length in range(2, size + 1):
         for start in range(size - length + 1):
             end = start + length - 1
@@ -30,5 +34,8 @@ def build_cyk_table(grammar, tokens):
                 for left in sorted(left_cell):
                     for right in sorted(right_cell):
                         for parent in binary_index.get((left, right), ()):
-                            cell.setdefault(parent, None)
+                            cell.setdefault(
+                                parent,
+                                BinaryBackPointer(Production(parent, (left, right)), split, left, right),
+                            )
     return table

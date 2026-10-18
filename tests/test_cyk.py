@@ -6,7 +6,9 @@ from src.algorithms.cyk.parser import recognize_cyk
 from src.algorithms.cyk.table import build_cyk_table, build_production_indexes
 from src.algorithms.simplification.simplify import simplify
 from src.input.sentence_parser import parse_sentence
+from src.model.backpointer import BinaryBackPointer, TerminalBackPointer
 from src.model.grammar import Grammar
+from src.model.production import Production
 from tests.grammar_helpers import PROJECT_GRAMMARS, grammar_from, load
 
 
@@ -76,10 +78,14 @@ class CykTableTest(unittest.TestCase):
         cells = [cell for row in table for cell in row]
         self.assertEqual(len({id(cell) for cell in cells}), len(cells))
 
-    def test_cells_map_variables_to_none(self):
+    def test_cells_map_variables_to_backpointers(self):
         table = build_cyk_table(ENGLISH, ["she", "eats"])
-        self.assertEqual(table[0][1], {"S": None})
-        self.assertEqual(table[1][1], {"VP": None, "V": None})
+        self.assertEqual(
+            table[0][1], {"S": BinaryBackPointer(Production("S", ("NP", "VP")), 0, "NP", "VP")}
+        )
+        self.assertEqual(
+            table[1][1], {"VP": TerminalBackPointer("eats"), "V": TerminalBackPointer("eats")}
+        )
 
     def test_diagonal_keeps_every_terminal_producer(self):
         table = build_cyk_table(grammar_from("S -> A B", "A -> a", "B -> a"), ["a"])
@@ -135,7 +141,7 @@ class RecognizeCykTest(unittest.TestCase):
     def test_non_empty_final_cell_without_start_is_rejected(self):
         grammar = grammar_from("S -> A B", "C -> A A", "A -> a", "B -> b")
         accepted, table = recognize_cyk(grammar, ["a", "a"])
-        self.assertEqual(table[0][1], {"C": None})
+        self.assertEqual(set(table[0][1]), {"C"})
         self.assertFalse(accepted)
 
     def test_empty_sentence_with_start_epsilon(self):
@@ -163,7 +169,7 @@ class RecognizeCykTest(unittest.TestCase):
         self.assertFalse(accepted)
         self.assertEqual(len(table), 3)
         self.assertEqual(table[1][1], {})
-        self.assertEqual(table[0][0], {"NP": None})
+        self.assertEqual(table[0][0], {"NP": TerminalBackPointer("she")})
 
     def test_residual_terminal_without_production_is_not_vocabulary(self):
         cnf = cnf_of("test_corto_p5.txt")
