@@ -1,4 +1,8 @@
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from src.algorithms.chomsky.converter import to_cnf
 from src.algorithms.chomsky.validator import is_cnf
@@ -10,6 +14,8 @@ from src.input.sentence_parser import parse_sentence
 from src.output.formatter import format_cyk_table, format_elapsed_ns, format_result, format_vocabulary_warnings
 from src.output.tree_formatter import format_parse_tree
 from tests.grammar_helpers import GRAMMARS_DIRECTORY, PROJECT_GRAMMARS
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 ACCEPTED_SENTENCES = (
     "she eats a cake",
@@ -193,6 +199,178 @@ class OutputIntegrationTest(unittest.TestCase):
         hidden = format_parse_tree(result.parse_tree, cnf.variables - original.variables)
         self.assertNotIn("X1", hidden)
         self.assertEqual([line[4:] for line in hidden.splitlines() if line.startswith(("├── ", "└── "))], ["A", "B", "C", "D"])
+
+
+def run_cli(*arguments, stdin=""):
+    return subprocess.run(
+        [sys.executable, "main.py", *arguments],
+        input=stdin,
+        text=True,
+        capture_output=True,
+        cwd=PROJECT_ROOT,
+        timeout=120,
+    )
+
+
+class CliSubprocessTest(unittest.TestCase):
+    def assert_clean_exit(self, completed):
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+
+    def assert_clean_error(self, completed):
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+        self.assertNotIn("Resultado:", completed.stdout)
+
+    def test_default_accepted_sentence(self):
+        completed = run_cli(stdin="she eats a cake\n\n")
+        self.assert_clean_exit(completed)
+        for expected in (
+            "CYK PARSER — TOC",
+            "Gramática: grammars/english.txt",
+            "|V| = 8   |Σ| = 21   |R| = 30",
+            "✓ Gramática en CNF (validador: 30 producciones válidas)",
+            "Tokens: ['she', 'eats', 'a', 'cake']",
+            "Resultado: SÍ pertenece al lenguaje.",
+            "Tiempo de esta validación: ",
+            "Parse tree:",
+            "└── VP",
+        ):
+            self.assertIn(expected, completed.stdout)
+
+    def test_default_rejected_sentence(self):
+        completed = run_cli(stdin="cat the drinks beer\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
+        self.assertIn("Tiempo de esta validación: ", completed.stdout)
+        self.assertNotIn("Parse tree:", completed.stdout)
+
+    def test_unknown_token_warns_and_rejects(self):
+        completed = run_cli(stdin="she likes cake\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn('Aviso: "likes" no pertenece al vocabulario de la gramática.', completed.stdout)
+        self.assertIn("Tokens: ['she', 'likes', 'cake']", completed.stdout)
+        self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
+
+    def test_show_table(self):
+        completed = run_cli("--show-table", stdin="she eats a cake\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Tabla CYK:", completed.stdout)
+        self.assertIn('[0,0] "she" = {NP}', completed.stdout)
+        self.assertIn('[0,3] "she eats a cake" = {S}', completed.stdout)
+        self.assertNotIn("BinaryBackPointer(", completed.stdout)
+        self.assertNotIn("TerminalBackPointer(", completed.stdout)
+
+    def test_show_cnf(self):
+        completed = run_cli("--show-cnf", "--grammar", "grammars/test_guia.txt", stdin="\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Gramática CNF", completed.stdout)
+        self.assertIn("S0 -> ε | U_a X1 | U_a U_b | U_a A | a", completed.stdout)
+        self.assertIn("✓ Gramática en CNF", completed.stdout)
+
+    def test_trace(self):
+        completed = run_cli("--trace", stdin="\n")
+        self.assert_clean_exit(completed)
+        for phase in range(6):
+            self.assertIn(f"Fase {phase}:", completed.stdout)
+        self.assertIn("Anulables", completed.stdout)
+        self.assertIn("3a Generadores", completed.stdout)
+        self.assertIn("Gramática resultante", completed.stdout)
+
+    def test_conclusions_without_trace(self):
+        completed = run_cli(stdin="\n")
+        self.assert_clean_exit(completed)
+        for phase in range(6):
+            self.assertIn(f"Fase {phase}:", completed.stdout)
+        self.assertNotIn("Anulables", completed.stdout)
+
+    def test_runs_three_adds_benchmark(self):
+        completed = run_cli("--runs", "3", stdin="she eats a cake\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Tiempo de esta validación: ", completed.stdout)
+        self.assertIn("Benchmark (mediana de 3 corridas): ", completed.stdout)
+
+    def test_runs_one_has_no_benchmark(self):
+        completed = run_cli("--runs", "1", stdin="she eats a cake\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Tiempo de esta validación: ", completed.stdout)
+        self.assertNotIn("Benchmark", completed.stdout)
+
+    def test_custom_grammar(self):
+        completed = run_cli("--grammar", "grammars/test_long_rules.txt", stdin="a b c d\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Gramática: grammars/test_long_rules.txt", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
+
+    def test_missing_grammar_file(self):
+        completed = run_cli("--grammar", "grammars/no_existe.txt", stdin="she eats a cake\n\n")
+        self.assert_clean_error(completed)
+        self.assertTrue(completed.stderr.startswith("Error: "))
+
+    def test_malformed_grammar_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "malformada.txt"
+            path.write_text("S -> a | | b\n", encoding="utf-8")
+            completed = run_cli("--grammar", str(path), stdin="a\n\n")
+        self.assert_clean_error(completed)
+        self.assertEqual(completed.stderr.strip(), "Error: Line 1: empty alternative")
+
+    def test_invalid_runs(self):
+        for value in ("0", "-1", "texto"):
+            with self.subTest(value=value):
+                completed = run_cli(f"--runs={value}", stdin="she eats a cake\n\n")
+                self.assert_clean_error(completed)
+                self.assertIn("--runs", completed.stderr)
+                self.assertNotIn("CYK PARSER", completed.stdout)
+
+    def test_eof_exits_cleanly(self):
+        completed = run_cli(stdin="")
+        self.assert_clean_exit(completed)
+        self.assertNotIn("Resultado:", completed.stdout)
+
+    def test_blank_line_exits_without_validation(self):
+        completed = run_cli(stdin="\n")
+        self.assert_clean_exit(completed)
+        self.assertNotIn("Resultado:", completed.stdout)
+        self.assertNotIn("Tokens:", completed.stdout)
+
+    def test_whitespace_line_exits_without_validation(self):
+        completed = run_cli(stdin="   \t \nshe eats a cake\n")
+        self.assert_clean_exit(completed)
+        self.assertNotIn("Tokens:", completed.stdout)
+
+    def test_punctuation_only_validates_empty_sentence(self):
+        completed = run_cli(stdin="!!!\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Tokens: []", completed.stdout)
+        self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
+
+    def test_punctuation_only_accepts_with_epsilon_grammar(self):
+        completed = run_cli("--grammar", "grammars/test_lab7.txt", stdin="?\n\n")
+        self.assert_clean_exit(completed)
+        self.assertIn("Tokens: []", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
+        self.assertIn("└── ε", completed.stdout)
+
+    def test_multiple_sentences_in_one_session(self):
+        completed = run_cli(stdin="she eats a cake\nshe likes cake\n\n")
+        self.assert_clean_exit(completed)
+        accepted = completed.stdout.index("Resultado: SÍ pertenece al lenguaje.")
+        rejected = completed.stdout.index("Resultado: NO pertenece al lenguaje.")
+        self.assertLess(accepted, rejected)
+        self.assertEqual(completed.stdout.count("CYK PARSER — TOC"), 1)
+
+    def test_combined_flags(self):
+        completed = run_cli("--trace", "--show-cnf", "--show-table", "--runs", "2", stdin="she eats\n\n")
+        self.assert_clean_exit(completed)
+        for expected in (
+            "Fase 5: binarizar",
+            "Gramática CNF",
+            "Tabla CYK:",
+            "Benchmark (mediana de 2 corridas): ",
+            "Resultado: SÍ pertenece al lenguaje.",
+        ):
+            self.assertIn(expected, completed.stdout)
 
 
 if __name__ == "__main__":
