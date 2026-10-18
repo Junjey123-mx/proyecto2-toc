@@ -29,15 +29,31 @@ from src.output.trace_formatter import (
 )
 from src.output.tree_formatter import format_parse_tree
 
-DEFAULT_GRAMMAR = Path(__file__).resolve().parent / "grammars" / "english.txt"
+GRAMMARS_DIRECTORY = Path(__file__).resolve().parent / "grammars"
+GRAMMAR_MENU_OPTIONS = (
+    ("English", GRAMMARS_DIRECTORY / "english.txt"),
+    ("Laboratorio 7", GRAMMARS_DIRECTORY / "test_lab7.txt"),
+    ("Guía", GRAMMARS_DIRECTORY / "test_guia.txt"),
+    ("Práctica", GRAMMARS_DIRECTORY / "test_practica.txt"),
+    ("Corto P3", GRAMMARS_DIRECTORY / "test_corto_p3.txt"),
+    ("Corto P4", GRAMMARS_DIRECTORY / "test_corto_p4.txt"),
+    ("Corto P5", GRAMMARS_DIRECTORY / "test_corto_p5.txt"),
+    ("Long Rules", GRAMMARS_DIRECTORY / "test_long_rules.txt"),
+)
+DEFAULT_GRAMMAR = GRAMMAR_MENU_OPTIONS[0][1]
+CUSTOM_FILE_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 1)
+EXIT_OPTION = "0"
 BANNER = "\n".join(["=" * 40, "CYK PARSER — TOC".center(40).rstrip(), "=" * 40])
+MENU_BANNER = "\n".join(["=" * 40, "SELECCIÓN DE GRAMÁTICA".center(40).rstrip(), "=" * 40])
 SEPARATOR = "-" * 40
 PROMPT = "Ingrese una oración (vacío para salir):"
+MENU_SENTENCE_PROMPT = "Ingrese una oración (vacío para volver al menú):"
+INVALID_OPTION = "Opción inválida. Intente nuevamente."
 
 
 @dataclass(frozen=True)
 class PreparedGrammar:
-    path: Path
+    source: str
     original: Grammar
     warnings: tuple
     traces: tuple
@@ -62,7 +78,9 @@ def build_argument_parser():
         prog="main.py",
         description="Determina con CYK si una oración pertenece al lenguaje de una gramática libre de contexto.",
     )
-    parser.add_argument("--grammar", type=Path, default=DEFAULT_GRAMMAR, metavar="RUTA", help="archivo .txt de la gramática")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--grammar", type=Path, metavar="RUTA", help="archivo .txt de la gramática")
+    source.add_argument("--menu", action="store_true", help="elige la gramática desde un menú interactivo")
     parser.add_argument("--trace", action="store_true", help="muestra las tablas de cada fase")
     parser.add_argument("--show-cnf", action="store_true", help="imprime la gramática final en CNF")
     parser.add_argument("--show-table", action="store_true", help="imprime la tabla CYK de cada oración")
@@ -71,16 +89,23 @@ def build_argument_parser():
 
 
 def parse_arguments(argv=None):
-    return build_argument_parser().parse_args(argv)
+    arguments = build_argument_parser().parse_args(argv)
+    arguments.grammar_given = arguments.grammar is not None
+    if not arguments.grammar_given:
+        arguments.grammar = DEFAULT_GRAMMAR
+    return arguments
 
 
 def prepare_grammar(path):
-    parsed = parse_grammar_file(path)
+    return prepare_parsed_grammar(parse_grammar_file(path), display_path(path))
+
+
+def prepare_parsed_grammar(parsed, source):
     simplified, simplification_traces = simplify(parsed.grammar)
     cnf, cnf_traces = to_cnf(simplified)
     terminal_index, _ = build_production_indexes(cnf)
     return PreparedGrammar(
-        path=path,
+        source=source,
         original=parsed.grammar,
         warnings=parsed.warnings,
         traces=tuple(simplification_traces + cnf_traces),
@@ -109,7 +134,7 @@ def format_preparation(prepared, show_trace, show_cnf):
         BANNER,
         "\n".join(
             [
-                f"Gramática: {display_path(prepared.path)}",
+                f"Gramática: {prepared.source}",
                 format_grammar_summary(prepared.original),
                 f"Símbolo inicial: {prepared.original.start_symbol}",
             ]
@@ -147,10 +172,10 @@ def format_sentence_report(prepared, tokens, runs, show_table):
     return "\n".join(lines)
 
 
-def interactive_loop(prepared, runs, show_table):
+def interactive_loop(prepared, runs, show_table, prompt=PROMPT):
     while True:
         print(SEPARATOR)
-        print(PROMPT)
+        print(prompt)
         raw = input("> ")
         if not raw.strip():
             return
@@ -159,15 +184,74 @@ def interactive_loop(prepared, runs, show_table):
         print()
 
 
+def format_menu():
+    lines = [MENU_BANNER, ""]
+    lines.extend(f"{number}. {label}" for number, (label, _) in enumerate(GRAMMAR_MENU_OPTIONS, start=1))
+    lines.append(f"{CUSTOM_FILE_OPTION}. Cargar otro archivo .txt")
+    lines.append(f"{EXIT_OPTION}. Salir")
+    lines.append("")
+    lines.append("Opción:")
+    return "\n".join(lines)
+
+
+def bundled_grammar_path(choice):
+    if choice.isdigit() and 1 <= int(choice) <= len(GRAMMAR_MENU_OPTIONS):
+        return GRAMMAR_MENU_OPTIONS[int(choice) - 1][1]
+    return None
+
+
+def prepare_menu_choice(choice):
+    path = bundled_grammar_path(choice)
+    if path is not None:
+        return prepare_grammar(path)
+    if choice == CUSTOM_FILE_OPTION:
+        print("Ruta del archivo .txt:")
+        return prepare_grammar(Path(input("> ").strip()))
+    return None
+
+
+def run_grammar_session(prepared, arguments, prompt=PROMPT):
+    print(format_preparation(prepared, arguments.trace, arguments.show_cnf))
+    print()
+    if prepared.violations:
+        return False
+    interactive_loop(prepared, arguments.runs, arguments.show_table, prompt)
+    return True
+
+
+def menu_session(arguments):
+    while True:
+        print(format_menu())
+        choice = input("> ").strip()
+        if choice == EXIT_OPTION:
+            return
+        try:
+            prepared = prepare_menu_choice(choice)
+        except (GrammarLoadError, ValueError) as error:
+            print(f"Error: {error}", file=sys.stderr)
+            print()
+            continue
+        if prepared is None:
+            print(INVALID_OPTION)
+            print()
+            continue
+        run_grammar_session(prepared, arguments, MENU_SENTENCE_PROMPT)
+        print()
+
+
+def uses_menu(arguments):
+    return not arguments.grammar_given and (arguments.menu or sys.stdin.isatty())
+
+
 def main(argv=None):
     arguments = parse_arguments(argv)
     try:
+        if uses_menu(arguments):
+            menu_session(arguments)
+            return 0
         prepared = prepare_grammar(arguments.grammar)
-        print(format_preparation(prepared, arguments.trace, arguments.show_cnf))
-        print()
-        if prepared.violations:
+        if not run_grammar_session(prepared, arguments):
             return 1
-        interactive_loop(prepared, arguments.runs, arguments.show_table)
     except (GrammarLoadError, ValueError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
