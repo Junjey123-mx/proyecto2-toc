@@ -9,7 +9,7 @@ from src.algorithms.cyk.parser import benchmark_cyk, parse_cyk
 from src.algorithms.cyk.table import build_production_indexes
 from src.algorithms.simplification.simplify import simplify
 from src.input.grammar_loader import GrammarLoadError
-from src.input.grammar_parser import parse_grammar_file
+from src.input.grammar_parser import parse_grammar_file, parse_grammar_lines
 from src.input.sentence_parser import parse_sentence
 from src.model.grammar import Grammar
 from src.output.formatter import (
@@ -42,6 +42,24 @@ GRAMMAR_MENU_OPTIONS = (
 )
 DEFAULT_GRAMMAR = GRAMMAR_MENU_OPTIONS[0][1]
 CUSTOM_FILE_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 1)
+MANUAL_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 2)
+MANUAL_SOURCE = "entrada manual"
+MANUAL_TERMINATOR = "FIN"
+MANUAL_INSTRUCTIONS = "\n".join(
+    [
+        "Ingrese las producciones de la gramática.",
+        "Use el mismo formato que los archivos .txt.",
+        f"Escriba {MANUAL_TERMINATOR} en una línea independiente para terminar.",
+        "",
+        "Ejemplo:",
+        "S -> NP VP",
+        "VP -> V NP | eats",
+        "NP -> Det N | she",
+        "V -> eats",
+        "Det -> a | the",
+        "N -> cake",
+    ]
+)
 EXIT_OPTION = "0"
 BANNER = "\n".join(["=" * 40, "CYK PARSER — TOC".center(40).rstrip(), "=" * 40])
 MENU_BANNER = "\n".join(["=" * 40, "SELECCIÓN DE GRAMÁTICA".center(40).rstrip(), "=" * 40])
@@ -188,6 +206,7 @@ def format_menu():
     lines = [MENU_BANNER, ""]
     lines.extend(f"{number}. {label}" for number, (label, _) in enumerate(GRAMMAR_MENU_OPTIONS, start=1))
     lines.append(f"{CUSTOM_FILE_OPTION}. Cargar otro archivo .txt")
+    lines.append(f"{MANUAL_OPTION}. Ingresar gramática manualmente")
     lines.append(f"{EXIT_OPTION}. Salir")
     lines.append("")
     lines.append("Opción:")
@@ -207,7 +226,20 @@ def prepare_menu_choice(choice):
     if choice == CUSTOM_FILE_OPTION:
         print("Ruta del archivo .txt:")
         return prepare_grammar(Path(input("> ").strip()))
+    if choice == MANUAL_OPTION:
+        return prepare_parsed_grammar(parse_grammar_lines(read_manual_lines()), MANUAL_SOURCE)
     return None
+
+
+def read_manual_lines():
+    print(MANUAL_INSTRUCTIONS)
+    print()
+    lines = []
+    while True:
+        line = input("> ")
+        if line.strip().upper() == MANUAL_TERMINATOR:
+            return list(enumerate(lines, start=1))
+        lines.append(line)
 
 
 def run_grammar_session(prepared, arguments, prompt=PROMPT):
