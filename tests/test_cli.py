@@ -168,7 +168,8 @@ class GrammarMenuTest(unittest.TestCase):
         self.assertEqual(main.bundled_grammar_path("2").name, "1.txt")
         self.assertEqual(main.bundled_grammar_path("3").name, "1-cnf.txt")
         self.assertEqual(main.bundled_grammar_path("10").name, "test_long_rules.txt")
-        self.assertEqual((main.CUSTOM_FILE_OPTION, main.MANUAL_OPTION), ("11", "12"))
+        self.assertEqual(main.MANUAL_OPTION, "11")
+        self.assertFalse(hasattr(main, "CUSTOM_FILE_OPTION"))
 
     def test_default_grammar_is_first_menu_option(self):
         self.assertEqual(main.DEFAULT_GRAMMAR, main.GRAMMAR_MENU_OPTIONS[0][1])
@@ -190,14 +191,15 @@ class GrammarMenuTest(unittest.TestCase):
             "9. Corto P5",
             "10. Long Rules",
             "Otras opciones:",
-            "11. Cargar otro archivo .txt",
-            "12. Ingresar gramática manualmente",
+            "11. Ingresar gramática manualmente",
             "0. Salir",
             "Opción:",
         )
         menu_lines = [line.strip() for line in menu.splitlines()]
         positions = [menu_lines.index(line) for line in expected_order]
         self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("Cargar otro archivo", menu)
+        self.assertNotIn("12.", menu)
 
     def test_invalid_choices_are_not_bundled(self):
         for choice in ("", "abc", "-1", "0", "11", "12", "15", "1.5"):

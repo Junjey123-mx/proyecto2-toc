@@ -57,8 +57,7 @@ GRAMMAR_MENU_SECTIONS = (
 GRAMMAR_MENU_OPTIONS = tuple(option for _, options in GRAMMAR_MENU_SECTIONS for option in options)
 OTHER_OPTIONS_TITLE = "Otras opciones:"
 DEFAULT_GRAMMAR = GRAMMAR_MENU_OPTIONS[0][1]
-CUSTOM_FILE_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 1)
-MANUAL_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 2)
+MANUAL_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 1)
 MANUAL_SOURCE = "entrada manual"
 MANUAL_TERMINATOR = "FIN"
 MANUAL_INSTRUCTIONS = "\n".join(
@@ -229,7 +228,6 @@ def format_menu():
             lines.append(f"{number}. {label}")
             number += 1
     lines.extend(["", OTHER_OPTIONS_TITLE, ""])
-    lines.append(f"{CUSTOM_FILE_OPTION}. Cargar otro archivo .txt")
     lines.append(f"{MANUAL_OPTION}. Ingresar gramática manualmente")
     lines.append(f"{EXIT_OPTION}. Salir")
     lines.append("")
@@ -247,9 +245,6 @@ def prepare_menu_choice(choice):
     path = bundled_grammar_path(choice)
     if path is not None:
         return prepare_grammar(path)
-    if choice == CUSTOM_FILE_OPTION:
-        print("Ruta del archivo .txt:")
-        return prepare_grammar(Path(input("> ").strip()))
     if choice == MANUAL_OPTION:
         return prepare_parsed_grammar(parse_grammar_lines(read_manual_lines()), MANUAL_SOURCE)
     return None

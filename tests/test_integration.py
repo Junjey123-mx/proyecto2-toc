@@ -374,7 +374,7 @@ class CliSubprocessTest(unittest.TestCase):
             self.assertIn(expected, completed.stdout)
 
 
-MANUAL_GRAMMAR = "12\nS -> A B\nA -> a\nB -> b\nFIN\n"
+MANUAL_GRAMMAR = "11\nS -> A B\nA -> a\nB -> b\nFIN\n"
 
 
 class MenuSubprocessTest(unittest.TestCase):
@@ -403,16 +403,6 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertEqual(completed.stdout.count("está en Forma Normal de Chomsky."), 10)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 11)
 
-    def test_custom_file(self):
-        completed = self.run_menu("11\ngrammars/test_long_rules.txt\na b c d\n\n0\n")
-        self.assertIn("Ruta del archivo .txt:", completed.stdout)
-        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
-
-    def test_missing_custom_file_returns_to_menu(self):
-        completed = self.run_menu("11\nnope.txt\n1\nshe eats\n\n0\n")
-        self.assertIn("Error: Grammar file not found: nope.txt", completed.stderr)
-        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
-
     def test_invalid_options_are_reported(self):
         completed = self.run_menu("xyz\n99\n-1\n0\n")
         self.assertEqual(completed.stdout.count("Opción inválida. Intente nuevamente."), 3)
@@ -437,28 +427,28 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertNotIn("Resultado: SÍ", completed.stdout)
 
     def test_invalid_manual_grammar_returns_to_menu(self):
-        completed = self.run_menu("12\nS -> a | | b\nFIN\n0\n")
+        completed = self.run_menu("11\nS -> a | | b\nFIN\n0\n")
         self.assertIn("Error: Line 1: empty alternative", completed.stderr)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
         self.assertNotIn("Gramática: entrada manual", completed.stdout)
 
     def test_empty_manual_grammar_is_rejected(self):
-        completed = self.run_menu("12\nFIN\n0\n")
+        completed = self.run_menu("11\nFIN\n0\n")
         self.assertIn("Error: Grammar has no productions", completed.stderr)
 
     def test_lowercase_terminator(self):
-        completed = self.run_menu("12\nS -> a\nfin\na\n\n0\n")
+        completed = self.run_menu("11\nS -> a\nfin\na\n\n0\n")
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_with_epsilon(self):
-        completed = self.run_menu("12\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n\n0\n")
+        completed = self.run_menu("11\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n\n0\n")
         self.assertIn("Tokens: []", completed.stdout)
         self.assertIn("└── ε", completed.stdout)
         self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 3)
         self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_goes_through_full_pipeline(self):
-        stdin = "12\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
+        stdin = "11\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
         completed = self.run_menu(stdin, "--trace", "--show-cnf")
         for phase in range(6):
             self.assertIn(f"FASE {phase} — ", completed.stdout)
@@ -712,7 +702,7 @@ class SymbolicGrammarIntegrationTest(unittest.TestCase):
 
 class ManualSymbolicGrammarSubprocessTest(unittest.TestCase):
     def test_option_ten_builds_complete_symbolic_grammar(self):
-        stdin = "12\n" + "\n".join(EXPRESSION_GRAMMAR_LINES) + "\nFIN\nid e e\nid\n\n\n0\n"
+        stdin = "11\n" + "\n".join(EXPRESSION_GRAMMAR_LINES) + "\nFIN\nid e e\nid\n\n\n0\n"
         completed = run_cli("--menu", stdin=stdin)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertNotIn("Traceback", completed.stdout + completed.stderr)
@@ -747,7 +737,7 @@ class InstructorGrammarMenuTest(unittest.TestCase):
             menu.index("Ejercicios propios de prueba:"),
             menu.index("4. Laboratorio 7"),
             menu.index("Otras opciones:"),
-            menu.index("12. Ingresar gramática manualmente"),
+            menu.index("11. Ingresar gramática manualmente"),
         ]
         self.assertEqual(order, sorted(order))
 
