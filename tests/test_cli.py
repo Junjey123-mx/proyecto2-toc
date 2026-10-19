@@ -144,6 +144,8 @@ class GrammarMenuTest(unittest.TestCase):
     def test_bundled_options_map_to_existing_files(self):
         expected = (
             "english.txt",
+            "1.txt",
+            "1-cnf.txt",
             "test_lab7.txt",
             "test_guia.txt",
             "test_practica.txt",
@@ -158,23 +160,47 @@ class GrammarMenuTest(unittest.TestCase):
                 self.assertTrue(path.is_file())
                 self.assertEqual(main.bundled_grammar_path(str(number)), path)
 
+    def test_instructor_and_internal_grammars_are_grouped(self):
+        titles = [title for title, _ in main.GRAMMAR_MENU_SECTIONS]
+        self.assertEqual(titles, ["Gramáticas proporcionadas por Bidkar Pojoy:", "Ejercicios propios de prueba:"])
+        instructor = [path.name for _, path in main.GRAMMAR_MENU_SECTIONS[0][1]]
+        self.assertEqual(instructor, ["english.txt", "1.txt", "1-cnf.txt"])
+        self.assertEqual(main.bundled_grammar_path("2").name, "1.txt")
+        self.assertEqual(main.bundled_grammar_path("3").name, "1-cnf.txt")
+        self.assertEqual(main.bundled_grammar_path("10").name, "test_long_rules.txt")
+        self.assertEqual((main.CUSTOM_FILE_OPTION, main.MANUAL_OPTION), ("11", "12"))
+
     def test_default_grammar_is_first_menu_option(self):
         self.assertEqual(main.DEFAULT_GRAMMAR, main.GRAMMAR_MENU_OPTIONS[0][1])
 
     def test_menu_lists_every_option(self):
         menu = main.format_menu()
-        for line in (
+        expected_order = (
             "SELECCIÓN DE GRAMÁTICA",
+            "Gramáticas proporcionadas por Bidkar Pojoy:",
             "1. English",
-            "8. Long Rules",
-            "9. Cargar otro archivo .txt",
-            "10. Ingresar gramática manualmente",
+            "2. 1.txt — Gramática de expresiones",
+            "3. 1-cnf.txt — Gramática de expresiones en CNF",
+            "Ejercicios propios de prueba:",
+            "4. Laboratorio 7",
+            "5. Guía",
+            "6. Práctica",
+            "7. Corto P3",
+            "8. Corto P4",
+            "9. Corto P5",
+            "10. Long Rules",
+            "Otras opciones:",
+            "11. Cargar otro archivo .txt",
+            "12. Ingresar gramática manualmente",
             "0. Salir",
-        ):
-            self.assertIn(line, menu)
+            "Opción:",
+        )
+        menu_lines = [line.strip() for line in menu.splitlines()]
+        positions = [menu_lines.index(line) for line in expected_order]
+        self.assertEqual(positions, sorted(positions))
 
     def test_invalid_choices_are_not_bundled(self):
-        for choice in ("", "abc", "-1", "0", "9", "10", "15", "1.5"):
+        for choice in ("", "abc", "-1", "0", "11", "12", "15", "1.5"):
             with self.subTest(choice=choice):
                 self.assertIsNone(main.bundled_grammar_path(choice))
 

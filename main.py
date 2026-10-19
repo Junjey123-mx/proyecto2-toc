@@ -32,16 +32,30 @@ from src.output.trace_formatter import (
 from src.output.tree_formatter import format_parse_tree
 
 GRAMMARS_DIRECTORY = Path(__file__).resolve().parent / "grammars"
-GRAMMAR_MENU_OPTIONS = (
-    ("English", GRAMMARS_DIRECTORY / "english.txt"),
-    ("Laboratorio 7", GRAMMARS_DIRECTORY / "test_lab7.txt"),
-    ("Guía", GRAMMARS_DIRECTORY / "test_guia.txt"),
-    ("Práctica", GRAMMARS_DIRECTORY / "test_practica.txt"),
-    ("Corto P3", GRAMMARS_DIRECTORY / "test_corto_p3.txt"),
-    ("Corto P4", GRAMMARS_DIRECTORY / "test_corto_p4.txt"),
-    ("Corto P5", GRAMMARS_DIRECTORY / "test_corto_p5.txt"),
-    ("Long Rules", GRAMMARS_DIRECTORY / "test_long_rules.txt"),
+GRAMMAR_MENU_SECTIONS = (
+    (
+        "Gramáticas proporcionadas por Bidkar Pojoy:",
+        (
+            ("English", GRAMMARS_DIRECTORY / "english.txt"),
+            ("1.txt — Gramática de expresiones", GRAMMARS_DIRECTORY / "1.txt"),
+            ("1-cnf.txt — Gramática de expresiones en CNF", GRAMMARS_DIRECTORY / "1-cnf.txt"),
+        ),
+    ),
+    (
+        "Ejercicios propios de prueba:",
+        (
+            ("Laboratorio 7", GRAMMARS_DIRECTORY / "test_lab7.txt"),
+            ("Guía", GRAMMARS_DIRECTORY / "test_guia.txt"),
+            ("Práctica", GRAMMARS_DIRECTORY / "test_practica.txt"),
+            ("Corto P3", GRAMMARS_DIRECTORY / "test_corto_p3.txt"),
+            ("Corto P4", GRAMMARS_DIRECTORY / "test_corto_p4.txt"),
+            ("Corto P5", GRAMMARS_DIRECTORY / "test_corto_p5.txt"),
+            ("Long Rules", GRAMMARS_DIRECTORY / "test_long_rules.txt"),
+        ),
+    ),
 )
+GRAMMAR_MENU_OPTIONS = tuple(option for _, options in GRAMMAR_MENU_SECTIONS for option in options)
+OTHER_OPTIONS_TITLE = "Otras opciones:"
 DEFAULT_GRAMMAR = GRAMMAR_MENU_OPTIONS[0][1]
 CUSTOM_FILE_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 1)
 MANUAL_OPTION = str(len(GRAMMAR_MENU_OPTIONS) + 2)
@@ -207,8 +221,14 @@ def interactive_loop(prepared, runs, show_table, prompt=PROMPT):
 
 
 def format_menu():
-    lines = [MENU_BANNER, ""]
-    lines.extend(f"{number}. {label}" for number, (label, _) in enumerate(GRAMMAR_MENU_OPTIONS, start=1))
+    lines = [MENU_BANNER]
+    number = 1
+    for title, options in GRAMMAR_MENU_SECTIONS:
+        lines.extend(["", title, ""])
+        for label, _ in options:
+            lines.append(f"{number}. {label}")
+            number += 1
+    lines.extend(["", OTHER_OPTIONS_TITLE, ""])
     lines.append(f"{CUSTOM_FILE_OPTION}. Cargar otro archivo .txt")
     lines.append(f"{MANUAL_OPTION}. Ingresar gramática manualmente")
     lines.append(f"{EXIT_OPTION}. Salir")

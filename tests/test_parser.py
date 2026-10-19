@@ -5,7 +5,7 @@ from pathlib import Path
 from src.input.grammar_parser import parse_grammar_file, parse_grammar_lines
 from src.input.grammar_validator import GrammarSyntaxError
 from src.model.production import Production
-from tests.grammar_helpers import EXPRESSION_GRAMMAR_LINES
+from tests.grammar_helpers import EXPRESSION_CNF_GRAMMAR_LINES, EXPRESSION_GRAMMAR_LINES
 
 GRAMMARS_DIRECTORY = Path(__file__).resolve().parent.parent / "grammars"
 
@@ -176,6 +176,23 @@ class SymbolicGrammarTest(unittest.TestCase):
             (from_file.start_symbol, from_file.variables, from_file.terminals, from_file.productions),
             (self.grammar.start_symbol, self.grammar.variables, self.grammar.terminals, self.grammar.productions),
         )
+
+
+class InstructorGrammarFilesTest(unittest.TestCase):
+    def test_expression_file_matches_canonical_grammar(self):
+        path = GRAMMARS_DIRECTORY / "1.txt"
+        self.assertEqual(path.read_text(encoding="utf-8").splitlines(), list(EXPRESSION_GRAMMAR_LINES))
+        self.assertEqual(parse_grammar_file(path).grammar, parse_text(*EXPRESSION_GRAMMAR_LINES).grammar)
+
+    def test_expression_cnf_file_contents(self):
+        path = GRAMMARS_DIRECTORY / "1-cnf.txt"
+        self.assertEqual(path.read_text(encoding="utf-8").splitlines(), list(EXPRESSION_CNF_GRAMMAR_LINES))
+        result = parse_grammar_file(path)
+        self.assertEqual(result.warnings, ())
+        self.assertEqual(result.grammar.start_symbol, "E")
+        self.assertEqual(result.grammar.variables, {"E", "X", "T", "Y", "F", "Z", "W", "V", "L", "R", "P", "M"})
+        self.assertEqual(result.grammar.terminals, {"id", "(", ")", "+", "*"})
+        self.assertEqual(len(result.grammar.productions), 20)
 
 
 if __name__ == "__main__":

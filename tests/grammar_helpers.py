@@ -5,6 +5,8 @@ from src.input.grammar_parser import parse_grammar_file, parse_grammar_lines
 GRAMMARS_DIRECTORY = Path(__file__).resolve().parent.parent / "grammars"
 PROJECT_GRAMMARS = (
     "english.txt",
+    "1.txt",
+    "1-cnf.txt",
     "test_lab7.txt",
     "test_guia.txt",
     "test_practica.txt",
@@ -21,6 +23,22 @@ EXPRESSION_GRAMMAR_LINES = (
     "T -> F Y",
     "Y -> * F Y | e",
     "F -> ( E ) | id",
+)
+
+
+EXPRESSION_CNF_GRAMMAR_LINES = (
+    "E -> T X | F Y | L Z | id",
+    "X -> P W | P T",
+    "T -> F Y | L Z | id",
+    "Y -> M V | M F",
+    "F -> L Z | id",
+    "Z -> E R",
+    "W -> T X",
+    "V -> F Y",
+    "L -> (",
+    "R -> )",
+    "P -> +",
+    "M -> *",
 )
 
 

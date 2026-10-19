@@ -14,7 +14,7 @@ from src.input.sentence_parser import parse_sentence
 from src.model.production import Production
 from src.output.formatter import format_cyk_table, format_elapsed_ns, format_result, format_vocabulary_warnings
 from src.output.tree_formatter import format_parse_tree
-from tests.grammar_helpers import EXPRESSION_GRAMMAR_LINES, GRAMMARS_DIRECTORY, PROJECT_GRAMMARS
+from tests.grammar_helpers import EXPRESSION_CNF_GRAMMAR_LINES, EXPRESSION_GRAMMAR_LINES, GRAMMARS_DIRECTORY, PROJECT_GRAMMARS
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -374,7 +374,7 @@ class CliSubprocessTest(unittest.TestCase):
             self.assertIn(expected, completed.stdout)
 
 
-MANUAL_GRAMMAR = "10\nS -> A B\nA -> a\nB -> b\nFIN\n"
+MANUAL_GRAMMAR = "12\nS -> A B\nA -> a\nB -> b\nFIN\n"
 
 
 class MenuSubprocessTest(unittest.TestCase):
@@ -393,23 +393,23 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
 
     def test_selects_long_rules(self):
-        completed = self.run_menu("8\na b c d\n\n0\n")
+        completed = self.run_menu("10\na b c d\n\n0\n")
         self.assertIn("Gramática: grammars/test_long_rules.txt", completed.stdout)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_every_bundled_option_loads(self):
-        stdin = "".join(f"{number}\n\n\n" for number in range(1, 9)) + "0\n"
+        stdin = "".join(f"{number}\n\n\n" for number in range(1, 11)) + "0\n"
         completed = self.run_menu(stdin)
-        self.assertEqual(completed.stdout.count("está en Forma Normal de Chomsky."), 8)
-        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 9)
+        self.assertEqual(completed.stdout.count("está en Forma Normal de Chomsky."), 10)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 11)
 
     def test_custom_file(self):
-        completed = self.run_menu("9\ngrammars/test_long_rules.txt\na b c d\n\n0\n")
+        completed = self.run_menu("11\ngrammars/test_long_rules.txt\na b c d\n\n0\n")
         self.assertIn("Ruta del archivo .txt:", completed.stdout)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_missing_custom_file_returns_to_menu(self):
-        completed = self.run_menu("9\nnope.txt\n1\nshe eats\n\n0\n")
+        completed = self.run_menu("11\nnope.txt\n1\nshe eats\n\n0\n")
         self.assertIn("Error: Grammar file not found: nope.txt", completed.stderr)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
@@ -437,28 +437,28 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertNotIn("Resultado: SÍ", completed.stdout)
 
     def test_invalid_manual_grammar_returns_to_menu(self):
-        completed = self.run_menu("10\nS -> a | | b\nFIN\n0\n")
+        completed = self.run_menu("12\nS -> a | | b\nFIN\n0\n")
         self.assertIn("Error: Line 1: empty alternative", completed.stderr)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
         self.assertNotIn("Gramática: entrada manual", completed.stdout)
 
     def test_empty_manual_grammar_is_rejected(self):
-        completed = self.run_menu("10\nFIN\n0\n")
+        completed = self.run_menu("12\nFIN\n0\n")
         self.assertIn("Error: Grammar has no productions", completed.stderr)
 
     def test_lowercase_terminator(self):
-        completed = self.run_menu("10\nS -> a\nfin\na\n\n0\n")
+        completed = self.run_menu("12\nS -> a\nfin\na\n\n0\n")
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_with_epsilon(self):
-        completed = self.run_menu("10\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n\n0\n")
+        completed = self.run_menu("12\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n\n0\n")
         self.assertIn("Tokens: []", completed.stdout)
         self.assertIn("└── ε", completed.stdout)
         self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 3)
         self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_goes_through_full_pipeline(self):
-        stdin = "10\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
+        stdin = "12\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
         completed = self.run_menu(stdin, "--trace", "--show-cnf")
         for phase in range(6):
             self.assertIn(f"FASE {phase} — ", completed.stdout)
@@ -468,7 +468,7 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertEqual(completed.stdout.count("Resultado: NO pertenece al lenguaje."), 2)
 
     def test_switches_grammar_in_same_session(self):
-        completed = self.run_menu("1\nshe eats a cake\n\n\n8\na b c d\n\n\n0\n")
+        completed = self.run_menu("1\nshe eats a cake\n\n\n10\na b c d\n\n\n0\n")
         english = completed.stdout.index("Gramática: grammars/english.txt")
         long_rules = completed.stdout.index("Gramática: grammars/test_long_rules.txt")
         self.assertLess(english, long_rules)
@@ -549,7 +549,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         return completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[1]
 
     def test_menu_shows_complete_procedure_for_lab7(self):
-        completed = self.run_menu("2\n\n\n0\n")
+        completed = self.run_menu("4\n\n\n0\n")
         procedure = completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[0]
         for phase in range(6):
             self.assertIn(f"FASE {phase} — ", procedure)
@@ -569,7 +569,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
             self.assertIn(detail, procedure)
 
     def test_menu_shows_cnf_and_check_before_validation(self):
-        completed = self.run_menu("2\n\n\n0\n")
+        completed = self.run_menu("4\n\n\n0\n")
         cnf = completed.stdout.index("GRAMÁTICA FINAL EN CNF")
         check = completed.stdout.index("✓ G6 está en Forma Normal de Chomsky.")
         validation = completed.stdout.index("VALIDACIÓN DE CADENAS")
@@ -589,7 +589,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         self.assertIn("• Enter dos veces consecutivas:\n  regresar al menú de gramáticas.", validation)
 
     def test_first_enter_validates_epsilon_and_second_returns(self):
-        completed = self.run_menu("2\n\n\n0\n")
+        completed = self.run_menu("4\n\n\n0\n")
         validation = self.validation_section(completed)
         self.assertEqual(validation.count("Tokens: []"), 1)
         self.assertEqual(validation.count("Resultado: SÍ pertenece al lenguaje."), 1)
@@ -604,7 +604,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
 
     def test_non_empty_input_resets_double_enter(self):
-        completed = self.run_menu("2\n\n0 0\n\n\n0\n")
+        completed = self.run_menu("4\n\n0 0\n\n\n0\n")
         validation = self.validation_section(completed)
         self.assertEqual(validation.count("Tokens: []"), 2)
         self.assertIn("Tokens: ['0', '0']", validation)
@@ -612,7 +612,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
 
     def test_zero_and_one_are_validated_as_strings(self):
-        completed = self.run_menu("2\n0\n1\n\n\n0\n")
+        completed = self.run_menu("4\n0\n1\n\n\n0\n")
         validation = self.validation_section(completed)
         self.assertIn("Tokens: ['0']", validation)
         self.assertIn("Tokens: ['1']", validation)
@@ -633,7 +633,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         self.assertNotIn("Aviso:", completed.stdout)
 
     def test_menu_flags_apply_in_demonstration_flow(self):
-        completed = self.run_menu("2\n0 0\n\n\n0\n", "--show-table", "--runs", "2")
+        completed = self.run_menu("4\n0 0\n\n\n0\n", "--show-table", "--runs", "2")
         validation = self.validation_section(completed)
         self.assertIn('[0,1] "0 0" = {A, B, S0}', validation)
         self.assertIn("Tabla CYK: ∅ (frase vacía)", validation)
@@ -712,7 +712,7 @@ class SymbolicGrammarIntegrationTest(unittest.TestCase):
 
 class ManualSymbolicGrammarSubprocessTest(unittest.TestCase):
     def test_option_ten_builds_complete_symbolic_grammar(self):
-        stdin = "10\n" + "\n".join(EXPRESSION_GRAMMAR_LINES) + "\nFIN\nid e e\nid\n\n\n0\n"
+        stdin = "12\n" + "\n".join(EXPRESSION_GRAMMAR_LINES) + "\nFIN\nid e e\nid\n\n\n0\n"
         completed = run_cli("--menu", stdin=stdin)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertNotIn("Traceback", completed.stdout + completed.stderr)
@@ -726,6 +726,67 @@ class ManualSymbolicGrammarSubprocessTest(unittest.TestCase):
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", validation)
         self.assertIn("Resultado: NO pertenece al lenguaje.", validation)
         self.assertIn("✓ G6 está en Forma Normal de Chomsky.", completed.stdout)
+
+
+class InstructorGrammarMenuTest(unittest.TestCase):
+    def run_menu(self, stdin):
+        completed = run_cli("--menu", stdin=stdin)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+        return completed
+
+    def original_section(self, completed):
+        return completed.stdout.split("GRAMÁTICA ORIGINAL — G0", 1)[1].split("FASE 0", 1)[0]
+
+    def test_menu_shows_grammar_origin_sections(self):
+        completed = self.run_menu("0\n")
+        menu = completed.stdout
+        order = [
+            menu.index("Gramáticas proporcionadas por Bidkar Pojoy:"),
+            menu.index("2. 1.txt — Gramática de expresiones"),
+            menu.index("Ejercicios propios de prueba:"),
+            menu.index("4. Laboratorio 7"),
+            menu.index("Otras opciones:"),
+            menu.index("12. Ingresar gramática manualmente"),
+        ]
+        self.assertEqual(order, sorted(order))
+
+    def test_option_two_loads_expression_grammar(self):
+        completed = self.run_menu("2\nid e e\n\n\n0\n")
+        self.assertIn("Gramática: grammars/1.txt", completed.stdout)
+        original = self.original_section(completed)
+        self.assertIn("\n".join(EXPRESSION_GRAMMAR_LINES), original)
+        self.assertIn("|V| = 5   |Σ| = 6   |R| = 8", original)
+        self.assertIn("Símbolo inicial: E", original)
+        self.assertIn("✓ G6 está en Forma Normal de Chomsky.", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[1])
+
+    def test_option_three_loads_expression_cnf_grammar(self):
+        completed = self.run_menu("3\nid + id\n\n\n0\n")
+        self.assertIn("Gramática: grammars/1-cnf.txt", completed.stdout)
+        original = self.original_section(completed)
+        for line in EXPRESSION_CNF_GRAMMAR_LINES[:5] + EXPRESSION_CNF_GRAMMAR_LINES[8:]:
+            with self.subTest(line=line):
+                self.assertIn(line, original)
+        self.assertIn("|V| = 12   |Σ| = 5   |R| = 20", original)
+        self.assertIn("✓ G6 está en Forma Normal de Chomsky.", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[1])
+
+    def test_options_two_and_three_in_same_session(self):
+        completed = self.run_menu("2\n\n\n3\n\n\n0\n")
+        expression = completed.stdout.index("Gramática: grammars/1.txt")
+        expression_cnf = completed.stdout.index("Gramática: grammars/1-cnf.txt")
+        self.assertLess(expression, expression_cnf)
+        self.assertEqual(completed.stdout.count("✓ G6 está en Forma Normal de Chomsky."), 2)
+
+    def test_grammar_flag_loads_instructor_files_without_menu(self):
+        for file_name, sentence in (("1.txt", "id e e"), ("1-cnf.txt", "( id * id )")):
+            with self.subTest(file_name=file_name):
+                completed = run_cli("--grammar", f"grammars/{file_name}", stdin=f"{sentence}\n\n")
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertNotIn("SELECCIÓN DE GRAMÁTICA", completed.stdout)
+                self.assertIn(f"Gramática: grammars/{file_name}", completed.stdout)
+                self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
 
 if __name__ == "__main__":
