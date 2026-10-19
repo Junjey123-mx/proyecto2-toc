@@ -1,5 +1,9 @@
+import unicodedata
+
 TRAILING_PUNCTUATION = ".!?"
+COMPATIBILITY_FORM = "NFKC"
 
 
 def parse_sentence(text):
-    return text.strip().lower().rstrip(TRAILING_PUNCTUATION).split()
+    normalized = unicodedata.normalize(COMPATIBILITY_FORM, text)
+    return normalized.strip().lower().rstrip(TRAILING_PUNCTUATION).split()
