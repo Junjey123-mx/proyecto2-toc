@@ -207,6 +207,7 @@ def run_cli(*arguments, stdin=""):
         [sys.executable, "main.py", *arguments],
         input=stdin,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         cwd=PROJECT_ROOT,
         timeout=120,

@@ -373,5 +373,13 @@ def main(argv=None):
     return 0
 
 
+def use_utf8_console():
+    """Fuerza UTF-8 en la consola para mostrar ε, Σ y ⇒ también en Windows."""
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 if __name__ == "__main__":
+    use_utf8_console()
     raise SystemExit(main())
