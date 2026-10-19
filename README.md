@@ -12,7 +12,7 @@ Programa en Python para leer una Gramática Independiente del Contexto, simplifi
 
 ## Video explicativo
 
-**Enlace:** _[Agregar enlace del video antes de la entrega]_
+**Enlace:** https://youtu.be/vIQZmSyZx8U
 
 ---
 
