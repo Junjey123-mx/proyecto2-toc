@@ -384,11 +384,11 @@ class MenuSubprocessTest(unittest.TestCase):
         return completed
 
     def test_selects_english(self):
-        completed = self.run_menu("1\nshe eats a cake\n\n0\n")
+        completed = self.run_menu("1\nshe eats a cake\n\n\n0\n")
         self.assertIn("SELECCIÓN DE GRAMÁTICA", completed.stdout)
         self.assertIn("Gramática: grammars/english.txt", completed.stdout)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
-        self.assertIn("vacío para volver al menú", completed.stdout)
+        self.assertIn("Enter dos veces: menú", completed.stdout)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
 
     def test_selects_long_rules(self):
@@ -397,7 +397,7 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_every_bundled_option_loads(self):
-        stdin = "".join(f"{number}\n\n" for number in range(1, 9)) + "0\n"
+        stdin = "".join(f"{number}\n\n\n" for number in range(1, 9)) + "0\n"
         completed = self.run_menu(stdin)
         self.assertEqual(completed.stdout.count("✓ Gramática en CNF"), 8)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 9)
@@ -450,24 +450,24 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_with_epsilon(self):
-        completed = self.run_menu("10\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n0\n")
+        completed = self.run_menu("10\nS -> a S | ε\nFIN\n!!!\na a\nb\n\n\n0\n")
         self.assertIn("Tokens: []", completed.stdout)
         self.assertIn("└── ε", completed.stdout)
-        self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 2)
+        self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 3)
         self.assertIn("Resultado: NO pertenece al lenguaje.", completed.stdout)
 
     def test_manual_grammar_goes_through_full_pipeline(self):
-        stdin = "10\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n0\n"
+        stdin = "10\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
         completed = self.run_menu(stdin, "--trace", "--show-cnf")
         for phase in range(6):
             self.assertIn(f"Fase {phase}:", completed.stdout)
         self.assertIn("Gramática CNF", completed.stdout)
         self.assertIn("S0 -> ", completed.stdout)
         self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 2)
-        self.assertEqual(completed.stdout.count("Resultado: NO pertenece al lenguaje."), 1)
+        self.assertEqual(completed.stdout.count("Resultado: NO pertenece al lenguaje."), 2)
 
     def test_switches_grammar_in_same_session(self):
-        completed = self.run_menu("1\nshe eats a cake\n\n8\na b c d\n\n0\n")
+        completed = self.run_menu("1\nshe eats a cake\n\n\n8\na b c d\n\n\n0\n")
         english = completed.stdout.index("Gramática: grammars/english.txt")
         long_rules = completed.stdout.index("Gramática: grammars/test_long_rules.txt")
         self.assertLess(english, long_rules)

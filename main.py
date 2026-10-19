@@ -65,7 +65,23 @@ BANNER = "\n".join(["=" * 40, "CYK PARSER — TOC".center(40).rstrip(), "=" * 40
 MENU_BANNER = "\n".join(["=" * 40, "SELECCIÓN DE GRAMÁTICA".center(40).rstrip(), "=" * 40])
 SEPARATOR = "-" * 40
 PROMPT = "Ingrese una oración (vacío para salir):"
-MENU_SENTENCE_PROMPT = "Ingrese una oración (vacío para volver al menú):"
+MENU_SENTENCE_PROMPT = "Ingrese una cadena (Enter: ε · Enter dos veces: menú):"
+VALIDATION_BANNER = "\n".join(
+    [
+        "=" * 40,
+        "VALIDACIÓN DE CADENAS".center(40).rstrip(),
+        "=" * 40,
+        "",
+        "Escriba una oración/cadena.",
+        "",
+        "Enter una vez:",
+        "  valida la cadena vacía ε",
+        "",
+        "Enter dos veces consecutivas:",
+        "  regresa al menú de gramáticas",
+    ]
+)
+RETURN_HINT = "Presione Enter nuevamente para volver al menú,\no escriba otra cadena para continuar."
 INVALID_OPTION = "Opción inválida. Intente nuevamente."
 
 
@@ -164,7 +180,7 @@ def format_preparation(prepared, show_trace, show_cnf):
     sections.append(format_traces(traces) if show_trace else format_conclusions(traces))
     if show_cnf:
         sections.append(
-            f"Gramática CNF ({format_grammar_summary(prepared.cnf)}):\n{format_grammar(prepared.cnf)}"
+            f"Gramática CNF final ({format_grammar_summary(prepared.cnf)}):\n{format_grammar(prepared.cnf)}"
         )
     sections.append(format_cnf_check(prepared.cnf, list(prepared.violations)))
     return "\n\n".join(sections)
@@ -242,13 +258,41 @@ def read_manual_lines():
         lines.append(line)
 
 
-def run_grammar_session(prepared, arguments, prompt=PROMPT):
+def run_grammar_session(prepared, arguments):
     print(format_preparation(prepared, arguments.trace, arguments.show_cnf))
     print()
     if prepared.violations:
         return False
-    interactive_loop(prepared, arguments.runs, arguments.show_table, prompt)
+    interactive_loop(prepared, arguments.runs, arguments.show_table)
     return True
+
+
+def menu_validation_loop(prepared, runs, show_table):
+    previous_input_was_empty = False
+    while True:
+        print(SEPARATOR)
+        print(MENU_SENTENCE_PROMPT)
+        raw = input("> ")
+        is_empty = not raw.strip()
+        if is_empty and previous_input_was_empty:
+            return
+        print()
+        print(format_sentence_report(prepared, parse_sentence(raw), runs, show_table))
+        if is_empty:
+            print()
+            print(RETURN_HINT)
+        print()
+        previous_input_was_empty = is_empty
+
+
+def run_menu_grammar_session(prepared, arguments):
+    print(format_preparation(prepared, show_trace=True, show_cnf=True))
+    print()
+    if prepared.violations:
+        return
+    print(VALIDATION_BANNER)
+    print()
+    menu_validation_loop(prepared, arguments.runs, arguments.show_table)
 
 
 def menu_session(arguments):
@@ -267,7 +311,7 @@ def menu_session(arguments):
             print(INVALID_OPTION)
             print()
             continue
-        run_grammar_session(prepared, arguments, MENU_SENTENCE_PROMPT)
+        run_menu_grammar_session(prepared, arguments)
         print()
 
 
