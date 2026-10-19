@@ -516,5 +516,150 @@ class LegacyCompatibilityTest(unittest.TestCase):
         self.assertNotIn("SELECCIÓN DE GRAMÁTICA", completed.stdout)
 
 
+PDF_SHE_SENTENCE = "𝑆ℎ𝑒 𝑒𝑎𝑡𝑠 𝑎 𝑐𝑎𝑘𝑒 𝑤𝑖𝑡ℎ 𝑎 𝑓𝑜𝑟𝑘"
+PDF_CAT_SENTENCE = "𝑇ℎ𝑒 𝑐𝑎𝑡 𝑑𝑟𝑖𝑛𝑘𝑠 𝑡ℎ𝑒 𝑏𝑒𝑒𝑟"
+
+
+class UnicodeSentenceIntegrationTest(unittest.TestCase):
+    def test_pdf_sentence_is_accepted_by_cyk(self):
+        tokens, result = validate(PDF_SHE_SENTENCE)
+        self.assertTrue(result.accepted)
+        self.assertIsNotNone(result.parse_tree)
+        self.assertEqual(leaves(result.parse_tree), ["she", "eats", "a", "cake", "with", "a", "fork"])
+
+    def test_second_pdf_sentence_is_accepted_by_cyk(self):
+        tokens, result = validate(PDF_CAT_SENTENCE)
+        self.assertEqual(tokens, ["the", "cat", "drinks", "the", "beer"])
+        self.assertTrue(result.accepted)
+
+    def test_pdf_sentence_has_no_vocabulary_warnings(self):
+        terminal_index, _ = build_production_indexes(ENGLISH)
+        self.assertEqual(format_vocabulary_warnings(parse_sentence(PDF_SHE_SENTENCE), terminal_index), "")
+
+
+class DemonstrationFlowSubprocessTest(unittest.TestCase):
+    def run_menu(self, stdin, *arguments):
+        completed = run_cli("--menu", *arguments, stdin=stdin)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+        return completed
+
+    def validation_section(self, completed):
+        return completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[1]
+
+    def test_menu_shows_complete_procedure_for_lab7(self):
+        completed = self.run_menu("2\n\n\n0\n")
+        procedure = completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[0]
+        for phase in range(6):
+            self.assertIn(f"Fase {phase}:", procedure)
+        for detail in (
+            "  Condiciones",
+            "  Anulables",
+            "  Variantes",
+            "  Unitarias",
+            "  Pares unitarios",
+            "  Transferencias",
+            "  3a Generadores",
+            "  3b Alcanzables",
+            "  Envoltorios",
+            "  Binarización",
+            "Gramática resultante",
+        ):
+            self.assertIn(detail, procedure)
+
+    def test_menu_shows_cnf_and_check_before_validation(self):
+        completed = self.run_menu("2\n\n\n0\n")
+        cnf = completed.stdout.index("Gramática CNF final")
+        check = completed.stdout.index("✓ Gramática en CNF")
+        validation = completed.stdout.index("VALIDACIÓN DE CADENAS")
+        self.assertLess(cnf, check)
+        self.assertLess(check, validation)
+        self.assertIn("S0 -> ε | U_0 X1", completed.stdout)
+
+    def test_menu_does_not_print_one_line_conclusions(self):
+        completed = self.run_menu("1\n\n\n0\n")
+        self.assertNotIn("Fase 0: nuevo símbolo inicial: ", completed.stdout)
+        self.assertEqual(completed.stdout.count("Fase 1: eliminación de producciones-ε"), 1)
+
+    def test_validation_banner_explains_navigation(self):
+        completed = self.run_menu("1\n\n\n0\n")
+        validation = self.validation_section(completed)
+        self.assertIn("Enter una vez:\n  valida la cadena vacía ε", validation)
+        self.assertIn("Enter dos veces consecutivas:\n  regresa al menú de gramáticas", validation)
+
+    def test_first_enter_validates_epsilon_and_second_returns(self):
+        completed = self.run_menu("2\n\n\n0\n")
+        validation = self.validation_section(completed)
+        self.assertEqual(validation.count("Tokens: []"), 1)
+        self.assertEqual(validation.count("Resultado: SÍ pertenece al lenguaje."), 1)
+        self.assertIn("Presione Enter nuevamente para volver al menú,", validation)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
+
+    def test_english_rejects_epsilon_on_first_enter(self):
+        completed = self.run_menu("1\n\n\n0\n")
+        validation = self.validation_section(completed)
+        self.assertEqual(validation.count("Tokens: []"), 1)
+        self.assertIn("Resultado: NO pertenece al lenguaje.", validation)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
+
+    def test_non_empty_input_resets_double_enter(self):
+        completed = self.run_menu("2\n\n0 0\n\n\n0\n")
+        validation = self.validation_section(completed)
+        self.assertEqual(validation.count("Tokens: []"), 2)
+        self.assertIn("Tokens: ['0', '0']", validation)
+        self.assertEqual(validation.count("Presione Enter nuevamente"), 2)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
+
+    def test_zero_and_one_are_validated_as_strings(self):
+        completed = self.run_menu("2\n0\n1\n\n\n0\n")
+        validation = self.validation_section(completed)
+        self.assertIn("Tokens: ['0']", validation)
+        self.assertIn("Tokens: ['1']", validation)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
+        self.assertNotIn("Opción inválida", completed.stdout)
+
+    def test_arbitrary_text_is_validated_as_string(self):
+        completed = self.run_menu("1\nFase 0\nvolver\nexit\n\n\n0\n")
+        validation = self.validation_section(completed)
+        for tokens in ("['fase', '0']", "['volver']", "['exit']"):
+            self.assertIn(f"Tokens: {tokens}", validation)
+        self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
+
+    def test_pdf_sentence_from_menu(self):
+        completed = self.run_menu(f"1\n{PDF_SHE_SENTENCE}\n\n\n0\n")
+        self.assertIn("Tokens: ['she', 'eats', 'a', 'cake', 'with', 'a', 'fork']", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
+        self.assertNotIn("Aviso:", completed.stdout)
+
+    def test_menu_flags_apply_in_demonstration_flow(self):
+        completed = self.run_menu("2\n0 0\n\n\n0\n", "--show-table", "--runs", "2")
+        validation = self.validation_section(completed)
+        self.assertIn('[0,1] "0 0" = {A, B, S0}', validation)
+        self.assertIn("Tabla CYK: ∅ (frase vacía)", validation)
+        self.assertEqual(validation.count("Benchmark (mediana de 2 corridas): "), 2)
+
+
+class DirectModeCompatibilityTest(unittest.TestCase):
+    def test_direct_mode_keeps_conclusions_and_single_enter_exit(self):
+        completed = run_cli("--grammar", "grammars/test_lab7.txt", stdin="0 0\n\n0 0\n")
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Fase 0: nuevo símbolo inicial: ", completed.stdout)
+        self.assertNotIn("  Anulables", completed.stdout)
+        self.assertNotIn("VALIDACIÓN DE CADENAS", completed.stdout)
+        self.assertEqual(completed.stdout.count("Resultado:"), 1)
+
+    def test_direct_mode_still_honors_trace_flag(self):
+        completed = run_cli("--trace", stdin="\n")
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("  Anulables", completed.stdout)
+        self.assertNotIn("VALIDACIÓN DE CADENAS", completed.stdout)
+
+    def test_direct_mode_accepts_pdf_sentence(self):
+        completed = run_cli(stdin=f"{PDF_CAT_SENTENCE}\n\n")
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Tokens: ['the', 'cat', 'drinks', 'the', 'beer']", completed.stdout)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

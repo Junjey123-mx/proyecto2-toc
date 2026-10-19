@@ -224,5 +224,48 @@ class ManualGrammarInputTest(unittest.TestCase):
         self.assertEqual(prepared.violations, ())
 
 
+class MenuValidationLoopTest(unittest.TestCase):
+    def run_loop(self, inputs, grammar="test_lab7.txt"):
+        prepared = main.prepare_grammar(PROJECT_ROOT / "grammars" / grammar)
+        output = io.StringIO()
+        with mock.patch("builtins.input", side_effect=inputs) as fake_input, contextlib.redirect_stdout(output):
+            main.menu_validation_loop(prepared, 1, False)
+        return output.getvalue(), fake_input.call_count
+
+    def test_two_consecutive_empty_inputs_return(self):
+        output, calls = self.run_loop(["", ""])
+        self.assertEqual(calls, 2)
+        self.assertEqual(output.count("Tokens: []"), 1)
+
+    def test_whitespace_counts_as_empty(self):
+        output, calls = self.run_loop(["   ", "\t"])
+        self.assertEqual(calls, 2)
+        self.assertEqual(output.count("Tokens: []"), 1)
+
+    def test_non_empty_input_resets_counter(self):
+        output, calls = self.run_loop(["", "1 1", "", ""])
+        self.assertEqual(calls, 4)
+        self.assertEqual(output.count("Tokens: []"), 2)
+        self.assertIn("Tokens: ['1', '1']", output)
+
+    def test_no_reserved_commands(self):
+        output, calls = self.run_loop(["0", "1", "q", "exit", "", ""])
+        self.assertEqual(calls, 6)
+        for tokens in ("['0']", "['1']", "['q']", "['exit']"):
+            self.assertIn(f"Tokens: {tokens}", output)
+
+    def test_menu_session_forces_complete_trace_and_cnf(self):
+        prepared = main.prepare_grammar(PROJECT_ROOT / "grammars" / "english.txt")
+        arguments = main.parse_arguments(["--menu"])
+        output = io.StringIO()
+        with mock.patch("builtins.input", side_effect=["", ""]), contextlib.redirect_stdout(output):
+            main.run_menu_grammar_session(prepared, arguments)
+        text = output.getvalue()
+        self.assertFalse(arguments.trace)
+        self.assertIn("  Anulables", text)
+        self.assertIn("Gramática CNF final", text)
+        self.assertLess(text.index("✓ Gramática en CNF"), text.index("VALIDACIÓN DE CADENAS"))
+
+
 if __name__ == "__main__":
     unittest.main()

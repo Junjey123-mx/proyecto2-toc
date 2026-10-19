@@ -76,5 +76,41 @@ class EdgeSentenceTest(unittest.TestCase):
         )
 
 
+PDF_SHE_SENTENCE = "𝑆ℎ𝑒 𝑒𝑎𝑡𝑠 𝑎 𝑐𝑎𝑘𝑒 𝑤𝑖𝑡ℎ 𝑎 𝑓𝑜𝑟𝑘"
+PDF_CAT_SENTENCE = "𝑇ℎ𝑒 𝑐𝑎𝑡 𝑑𝑟𝑖𝑛𝑘𝑠 𝑡ℎ𝑒 𝑏𝑒𝑒𝑟"
+SHE_EATS_WITH_FORK = ["she", "eats", "a", "cake", "with", "a", "fork"]
+
+
+class CompatibilityUnicodeTest(unittest.TestCase):
+    def test_mathematical_italic_sentence_from_pdf(self):
+        self.assertEqual(parse_sentence(PDF_SHE_SENTENCE), SHE_EATS_WITH_FORK)
+
+    def test_second_pdf_sentence(self):
+        self.assertEqual(parse_sentence(PDF_CAT_SENTENCE), ["the", "cat", "drinks", "the", "beer"])
+
+    def test_mathematical_unicode_with_trailing_punctuation(self):
+        self.assertEqual(parse_sentence("𝑆ℎ𝑒 𝑒𝑎𝑡𝑠 𝑎 𝑐𝑎𝑘𝑒!"), SHE_EATS_A_CAKE)
+        self.assertEqual(parse_sentence("𝑆ℎ𝑒 𝑒𝑎𝑡𝑠 𝑎 𝑐𝑎𝑘𝑒."), SHE_EATS_A_CAKE)
+
+    def test_ascii_variants_match_unicode_variant(self):
+        for sentence in ("She eats a cake with a fork", "SHE EATS A CAKE WITH A FORK", PDF_SHE_SENTENCE):
+            with self.subTest(sentence=sentence):
+                self.assertEqual(parse_sentence(sentence), SHE_EATS_WITH_FORK)
+
+    def test_ascii_input_is_unchanged_by_normalization(self):
+        for sentence in ("cat,dog", "e.g. why? yes.", "she\teats \t a\n cake", "!!!", ""):
+            with self.subTest(sentence=sentence):
+                self.assertEqual(
+                    parse_sentence(sentence), sentence.strip().lower().rstrip(".!?").split()
+                )
+
+    def test_other_compatibility_forms_are_normalized(self):
+        self.assertEqual(parse_sentence("ｓｈｅ　ｅａｔｓ"), ["she", "eats"])
+        self.assertEqual(parse_sentence("𝐒𝐇𝐄 𝐞𝐚𝐭𝐬"), ["she", "eats"])
+
+    def test_greek_epsilon_survives_normalization(self):
+        self.assertEqual(parse_sentence("ε"), ["ε"])
+
+
 if __name__ == "__main__":
     unittest.main()
