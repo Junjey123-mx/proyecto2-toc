@@ -29,13 +29,15 @@ Programa en Python para leer una Gramática Independiente del Contexto, simplifi
 9. [Backpointers y parse tree](#9-backpointers-y-parse-tree)
 10. [Decisiones de implementación en Python](#10-decisiones-de-implementación-en-python)
 11. [Decisiones y criterios adoptados](#11-decisiones-y-criterios-adoptados)
-12. [Estrategia de validación](#12-estrategia-de-validación)
-13. [Tests automatizados](#13-tests-automatizados)
-14. [Ejecución](#14-ejecución)
-15. [Ejemplo completo](#15-ejemplo-completo-1txt)
-16. [Limitaciones y alcance](#16-limitaciones-y-alcance)
-17. [Organización del proyecto](#17-organización-del-proyecto)
-18. [Referencias bibliográficas](#18-referencias-bibliográficas)
+12. [Discusión](#12-discusión)
+13. [Estrategia de validación](#13-estrategia-de-validación)
+14. [Tests automatizados](#14-tests-automatizados)
+15. [Ejecución](#15-ejecución)
+16. [Ejemplo completo](#16-ejemplo-completo-1txt)
+17. [Ejemplos con la gramática English](#17-ejemplos-con-la-gramática-english)
+18. [Limitaciones y alcance](#18-limitaciones-y-alcance)
+19. [Organización del proyecto](#19-organización-del-proyecto)
+20. [Referencias bibliográficas](#20-referencias-bibliográficas)
 
 ---
 
@@ -424,7 +426,33 @@ La validación CNF ocurre **antes** de iniciar el cronómetro y la reconstrucci�
 
 El valor se reporta en µs y en segundos. Con `--runs N` (N > 1) el programa ejecuta además N reconocimientos adicionales sin reconstruir árboles y muestra su mediana como benchmark, separada del tiempo de la validación individual. La decisión SÍ/NO siempre proviene de la ejecución individual.
 
-## 12. Estrategia de validación
+## 12. Discusión
+
+### Obstáculos encontrados
+
+**Distinguir `e` de `ε`.** La gramática de expresiones proporcionada contiene `X -> + T X | e` y `Y -> * F Y | e`, donde `e` es un terminal literal y no la cadena vacía. Tratarlo como ε habría hecho anulables a `X` y `Y`, cambiado el conjunto Nullable, generado variantes incorrectas en la Fase 1 y alterado la CNF final y las cadenas aceptadas por CYK. Fue necesario fijar explícitamente que solo `ε` y la palabra `epsilon` representan la cadena vacía, y proteger esa distinción con pruebas de regresión que recorren el parser, el pipeline completo y CYK.
+
+**Conservar la equivalencia durante CFG → CNF.** No bastaba con obtener una gramática que "pareciera" CNF. Cada transformación debía preservar el lenguaje, evitar colisiones entre las variables auxiliares (`S0`, `U_a`, `X1`) y las variables del usuario, controlar los duplicados, respetar el símbolo inicial activo y manejar ε solo donde corresponde. Por eso el procedimiento se dividió en versiones explícitas `G0 → G6`, cada una validada como `Grammar`, y el resultado final pasa por el validador CNF antes de que CYK se ejecute. La equivalencia se comprobó además con un oráculo que enumera las palabras de longitud acotada de la gramática original y de la final.
+
+**Validar las fases intermedias.** Un error temprano en el cálculo de anulables, en el cierre de unitarias, en los conjuntos de generadoras o alcanzables, en los envoltorios o en la binarización se propaga a todas las fases siguientes y produce una CNF que acepta o rechaza cadenas incorrectas. Al resolver los ejercicios a mano ese efecto en cascada ya se había observado. Por ello se adoptó la metodología de identificar, calcular la información, iterar hasta punto fijo, transformar y escribir la nueva gramática, y cada fase se comparó por separado contra ejercicios resueltos previamente antes de implementar la siguiente.
+
+**Reconstruir el parse tree.** Decidir SÍ/NO no era suficiente: el enunciado exige construir el árbol. Eso obligó a que CYK conservara, durante el llenado de la tabla, un backpointer por cada variable reconocida en cada celda, indicando qué producción, qué corte y qué subproblemas la originaron. El árbol se reconstruye directamente desde esa información, sin volver a analizar la cadena, y el recorrido determinista de la tabla garantiza que la misma cadena produzca siempre el mismo árbol.
+
+**Validar con gramáticas diferentes.** `english.txt` ya está en CNF, de modo que por sí sola no ejercita ninguna transformación. Validar únicamente con ella habría dejado sin probar las Fases 0–5. Se incorporaron los ejercicios resueltos a mano, la gramática de expresiones fuera de CNF y la versión ya en CNF proporcionada; cada una activa fases distintas (ε en el Laboratorio 7, ciclos unitarios en el Corto P4, binarización en `1.txt`) y permitió detectar casos que la gramática principal no cubre.
+
+### Recomendaciones
+
+**Verificar cada fase antes de avanzar.** Convertir una CFG a CNF en una sola transformación opaca dificulta localizar errores. Es preferible tratar ε, unitarias, inútiles, terminales acompañados y binarización como pasos separados, con su propia gramática resultante y su propia prueba.
+
+**Usar ejercicios resueltos a mano como oráculos.** Una implementación algorítmica debe contrastarse con resultados conocidos. La secuencia solución manual → test → implementación → regresión convierte cada ejercicio del curso en una comprobación permanente y evita que una corrección posterior reintroduzca un error.
+
+**Mantener la separación de responsabilidades.** Separar entrada, modelo, algoritmos y presentación permite probar los algoritmos sin terminal, reutilizarlos desde la interfaz y desde los tests, y cambiar la presentación sin tocar la lógica.
+
+**Validar CNF antes de ejecutar CYK.** CYK no debe confiar ciegamente en la etapa anterior. Una comprobación formal de las tres formas permitidas (`A -> B C`, `A -> a` y `S -> ε` bajo su condición) detecta de inmediato cualquier producción que la conversión haya dejado mal formada.
+
+**Probar aceptación y rechazo.** Una suite que solo contiene cadenas válidas es insuficiente. Deben probarse cadenas pertenecientes, cadenas no pertenecientes, tokens fuera del vocabulario, la cadena vacía cuando aplique y casos estructurales en los que todos los símbolos son conocidos pero la cadena no puede derivarse desde el símbolo inicial.
+
+## 13. Estrategia de validación
 
 ```text
 resolver o conocer el resultado manual
@@ -453,7 +481,7 @@ Los oráculos provienen del Laboratorio 7, los ejercicios de la guía, la práct
 | `1-cnf.txt` | Gramática oficial ya en CNF: solo cambian las Fases 0 y 2 por el nuevo inicial E0; las demás concluyen `Gk = Gk-1` |
 | English | Reconocimiento CYK: cuatro frases aceptadas y cuatro rechazadas |
 
-## 13. Tests automatizados
+## 14. Tests automatizados
 
 ```bash
 python -m unittest discover -v
@@ -477,7 +505,7 @@ Verifica que `(`, `)`, `+`, `*` e `id` se traten como terminales literales, que 
 
 Determinismo: la salida completa de las trazas es idéntica entre ejecuciones y con distintos valores de `PYTHONHASHSEED`, porque ningún resultado visible depende del orden de iteración de un `set`.
 
-## 14. Ejecución
+## 15. Ejecución
 
 Requisitos: Python 3 (el proyecto se desarrolló con Python 3.14) y ninguna dependencia externa.
 
@@ -558,7 +586,7 @@ python main.py [--grammar RUTA | --menu] [--trace] [--show-cnf] [--show-table] [
 
 Cuando la entrada estándar no es una terminal y no se indica `--grammar` ni `--menu`, el programa usa `grammars/english.txt` y termina con la primera línea vacía; así puede usarse en tuberías: `printf 'she eats a cake\n\n' | python main.py`.
 
-## 15. Ejemplo completo: `1.txt`
+## 16. Ejemplo completo: `1.txt`
 
 Opción `2` del menú (o `python main.py --grammar grammars/1.txt`). Se muestran solo fragmentos representativos de la salida real.
 
@@ -660,7 +688,57 @@ Tiempo de esta validación: 20.903 µs  (0.000020903 s)
 
 Los tiempos son los de una corrida concreta; varían entre ejecuciones y entre máquinas.
 
-## 16. Limitaciones y alcance
+## 17. Ejemplos con la gramática English
+
+Gramática `grammars/english.txt` (ya en CNF):
+
+```text
+S -> NP VP
+VP -> VP PP | V NP | cooks | drinks | eats | cuts
+PP -> P NP
+NP -> Det N | he | she
+V -> cooks | drinks | eats | cuts
+P -> in | with
+N -> cat | dog | beer | cake | juice | meat | soup | fork | knife | oven | spoon
+Det -> a | the
+```
+
+Todos los resultados de esta sección se obtuvieron ejecutando `python main.py` con la opción `1. English`. Las capturas son la evidencia de esas ejecuciones; los tiempos que muestran corresponden a esa corrida particular.
+
+### Frases dentro del lenguaje
+
+| Frase | Resultado |
+|---|---|
+| `she drinks the juice in the oven` | **SÍ pertenece** |
+| `he eats the cake with a spoon` | **SÍ pertenece** |
+
+**`she drinks the juice in the oven`.** CYK encuentra la estructura `S -> NP VP` con `NP -> she` y un `VP -> VP PP`, donde el `VP` interno es `V NP` (`drinks` + `the juice`) y el `PP` es `P NP` (`in` + `the oven`).
+
+![English — she drinks the juice in the oven](docs/images/english/english-positive-drinks-oven.png)
+
+Resultado SÍ y parse tree reconstruido desde los backpointers de la tabla.
+
+**`he eats the cake with a spoon`.** Misma forma: `NP -> he`, `VP -> V NP` (`eats` + `the cake`) extendido por `PP -> P NP` (`with` + `a spoon`).
+
+![English — he eats the cake with a spoon](docs/images/english/english-positive-eats-spoon.png)
+
+Resultado SÍ y parse tree correspondiente.
+
+### Frases fuera del lenguaje
+
+| Frase | Resultado | Motivo principal |
+|---|---|---|
+| `she eats a pizza` | **NO pertenece** | `pizza` no está en Σ: el programa lo avisa y la celda de ese token queda vacía |
+| `she eats an cake` | **NO pertenece** | `an` no está en Σ (el determinante válido es `a`) |
+| `eats a cake` | **NO pertenece** | todos los tokens son conocidos, pero falta el `NP` inicial que exige `S -> NP VP` |
+
+![English — ejemplos rechazados](docs/images/english/english-negative-examples.png)
+
+Las tres cadenas se rechazan; en las dos primeras aparece el aviso de vocabulario y en la tercera no, porque el rechazo es puramente estructural.
+
+Los casos positivos comprueban que CYK reconoce estructuras con `VP -> V NP` y su extensión `VP -> VP PP`. Los negativos verifican tanto el rechazo por vocabulario desconocido como el rechazo sintáctico cuando los tokens pertenecen al vocabulario pero no pueden derivarse desde `S`. Es decir, **NO pertenece** no significa únicamente que haya un token desconocido.
+
+## 18. Limitaciones y alcance
 
 - Se reconstruye **un** parse tree por cadena, no el bosque de todos los árboles posibles.
 - Σ conserva el alfabeto declarado; el vocabulario efectivo de CYK son los terminales con producción `A -> a` en `G6`.
@@ -670,14 +748,14 @@ Los tiempos son los de una corrida concreta; varían entre ejecuciones y entre m
 - La tokenización separa por espacios tras una normalización mínima; no hay un analizador léxico de expresiones (`id+id` es un solo token, `id + id` son tres).
 - No se utiliza procesamiento de lenguaje natural ni bibliotecas externas para CNF o CYK: la lógica completa está implementada en el proyecto con la biblioteca estándar de Python.
 
-## 17. Organización del proyecto
+## 19. Organización del proyecto
 
 - **`grammars/`** — las tres gramáticas proporcionadas (`english.txt`, `1.txt`, `1-cnf.txt`) y las siete gramáticas de validación resueltas previamente a mano.
 - **`src/`** — el código del programa separado en entrada, modelo, algoritmos (simplificación, Chomsky, CYK), salida y utilidades. Cada módulo incluye docstrings breves con su propósito y la propiedad teórica que implementa.
 - **`tests/`** — 20 archivos de pruebas con `unittest` y `grammar_helpers.py`, que concentra la carga de gramáticas, la gramática simbólica de regresión y el oráculo de lenguaje acotado.
 - **`main.py`** — el punto de entrada: menú, preparación única de la gramática por sesión y validación de cadenas.
 
-## 18. Referencias bibliográficas
+## 20. Referencias bibliográficas
 
 ### Enunciado y material del curso
 
