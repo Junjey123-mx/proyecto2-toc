@@ -175,9 +175,9 @@ def prepare_parsed_grammar(parsed, source):
 def display_path(path):
     """Devuelve la ruta relativa al directorio actual cuando es posible."""
     try:
-        return str(path.resolve().relative_to(Path.cwd()))
+        return path.resolve().relative_to(Path.cwd()).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def format_parse_warnings(warnings):
