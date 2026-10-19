@@ -264,7 +264,7 @@ class MenuValidationLoopTest(unittest.TestCase):
         self.assertFalse(arguments.trace)
         self.assertIn("  Anulables", text)
         self.assertIn("GRAMÁTICA FINAL EN CNF", text)
-        self.assertLess(text.index("✓ Gramática en CNF"), text.index("VALIDACIÓN DE CADENAS"))
+        self.assertLess(text.index("✓ G6 está en Forma Normal de Chomsky."), text.index("VALIDACIÓN DE CADENAS"))
 
 
 if __name__ == "__main__":

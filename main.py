@@ -25,8 +25,9 @@ from src.output.trace_formatter import (
     format_cnf_grammar,
     format_cnf_validation,
     format_conclusions,
-    format_grammar_summary,
+    format_original_grammar,
     format_traces,
+    grammar_version,
 )
 from src.output.tree_formatter import format_parse_tree
 
@@ -164,23 +165,15 @@ def format_parse_warnings(warnings):
 
 
 def format_preparation(prepared, show_trace, show_cnf):
-    sections = [
-        BANNER,
-        "\n".join(
-            [
-                f"Gramática: {prepared.source}",
-                format_grammar_summary(prepared.original),
-                f"Símbolo inicial: {prepared.original.start_symbol}",
-            ]
-        ),
-    ]
+    sections = [f"{BANNER}\n\nGramática: {prepared.source}", format_original_grammar(prepared.original)]
     if prepared.warnings:
         sections.append(format_parse_warnings(prepared.warnings))
     traces = list(prepared.traces)
-    sections.append(format_traces(traces) if show_trace else format_conclusions(traces))
+    final_version = grammar_version(len(traces))
+    sections.append(format_traces(traces, original=prepared.original) if show_trace else format_conclusions(traces))
     if show_cnf:
-        sections.append(format_cnf_grammar(prepared.cnf))
-    sections.append(format_cnf_validation(prepared.cnf, list(prepared.violations)))
+        sections.append(format_cnf_grammar(prepared.cnf, final_version))
+    sections.append(format_cnf_validation(prepared.cnf, list(prepared.violations), final_version))
     return "\n\n\n".join(sections)
 
 

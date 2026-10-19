@@ -229,7 +229,7 @@ class CliSubprocessTest(unittest.TestCase):
             "CYK PARSER — TOC",
             "Gramática: grammars/english.txt",
             "|V| = 8   |Σ| = 21   |R| = 30",
-            "✓ Gramática en CNF\n  30 producciones válidas",
+            "✓ G6 está en Forma Normal de Chomsky.\n  30 producciones válidas",
             "Tokens: ['she', 'eats', 'a', 'cake']",
             "Resultado: SÍ pertenece al lenguaje.",
             "Tiempo de esta validación: ",
@@ -266,7 +266,7 @@ class CliSubprocessTest(unittest.TestCase):
         self.assert_clean_exit(completed)
         self.assertIn("GRAMÁTICA FINAL EN CNF", completed.stdout)
         self.assertIn("S0 -> ε | U_a X1 | U_a U_b | U_a A | a", completed.stdout)
-        self.assertIn("✓ Gramática en CNF", completed.stdout)
+        self.assertIn("✓ G6 está en Forma Normal de Chomsky.", completed.stdout)
 
     def test_trace(self):
         completed = run_cli("--trace", stdin="\n")
@@ -399,7 +399,7 @@ class MenuSubprocessTest(unittest.TestCase):
     def test_every_bundled_option_loads(self):
         stdin = "".join(f"{number}\n\n\n" for number in range(1, 9)) + "0\n"
         completed = self.run_menu(stdin)
-        self.assertEqual(completed.stdout.count("✓ Gramática en CNF"), 8)
+        self.assertEqual(completed.stdout.count("está en Forma Normal de Chomsky."), 8)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 9)
 
     def test_custom_file(self):
@@ -570,7 +570,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
     def test_menu_shows_cnf_and_check_before_validation(self):
         completed = self.run_menu("2\n\n\n0\n")
         cnf = completed.stdout.index("GRAMÁTICA FINAL EN CNF")
-        check = completed.stdout.index("✓ Gramática en CNF")
+        check = completed.stdout.index("✓ G6 está en Forma Normal de Chomsky.")
         validation = completed.stdout.index("VALIDACIÓN DE CADENAS")
         self.assertLess(cnf, check)
         self.assertLess(check, validation)

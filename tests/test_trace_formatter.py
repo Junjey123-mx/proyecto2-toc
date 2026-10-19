@@ -12,6 +12,8 @@ from src.output.trace_formatter import (
     format_cnf_grammar,
     format_cnf_validation,
     format_conclusions,
+    format_original_grammar,
+    relabel_note,
     format_grammar,
     format_table,
     format_trace,
@@ -61,10 +63,10 @@ class FormatTraceTest(unittest.TestCase):
         for expected in (
             "FASE 0 — NUEVO SÍMBOLO INICIAL",
             "FASE 1 — ELIMINACIÓN DE ε",
-            "N = ∅ ⇒ G1 = G0",
+            "N = ∅ ⇒ G2 = G1",
             "No hay producciones unitarias",
-            "Sin símbolos inútiles ⇒ G3 = G2",
-            "Ningún terminal acompañado ⇒ G4 = G3",
+            "Sin símbolos inútiles ⇒ G4 = G3",
+            "Ningún terminal acompañado ⇒ G5 = G4",
             "Ningún RHS tiene longitud > 2 ⇒ no aplica",
         ):
             self.assertIn(expected, text)
@@ -148,8 +150,8 @@ class AcademicTracePresentationTest(unittest.TestCase):
             with self.subTest(phase=phase):
                 block = self.lab7.split(PHASE_BANNERS[phase], 1)[1].split("Conclusión de la fase:", 1)[0]
                 last_step = STEP_PATTERN.split(block)[-1]
-                self.assertTrue(last_step.startswith(f"Construir G{phase}"))
-                self.assertIn(f"Gramática resultante G{phase} (", last_step)
+                self.assertTrue(last_step.startswith(f"Construir G{phase + 1}"))
+                self.assertIn(f"Gramática resultante G{phase + 1} (", last_step)
 
     def test_steps_are_separated_by_two_blank_lines(self):
         self.assertIn("\n\n\n2. Determinar el símbolo inicial resultante", self.lab7)
@@ -180,21 +182,21 @@ class AcademicTracePresentationTest(unittest.TestCase):
         self.assertIn("Ningún RHS tiene longitud mayor que 2.", self.english)
 
     def test_conclusion_is_separated_from_grammar(self):
-        self.assertIn("\n\n\nConclusión de la fase:\nN = ∅ ⇒ G1 = G0", self.english)
+        self.assertIn("\n\n\nConclusión de la fase:\nN = ∅ ⇒ G2 = G1", self.english)
         self.assertEqual(self.lab7.count("Conclusión de la fase:"), 6)
 
     def test_conclusion_skips_notes_already_shown_as_results(self):
         block = self.lab7.split("FASE 1 — ELIMINACIÓN DE ε", 1)[1].split("FASE 2", 1)[0]
         conclusion = block.split("Conclusión de la fase:", 1)[1]
         self.assertNotIn("\nN = {A, B, C, S, S0}\n", conclusion)
-        self.assertIn("N = {A, B, C, S, S0} ⇒ G1 sin producciones-ε, salvo S0 -> ε", conclusion)
+        self.assertIn("N = {A, B, C, S, S0} ⇒ G2 sin producciones-ε, salvo S0 -> ε", conclusion)
 
     def test_conclusion_keeps_final_note_even_if_repeated(self):
         trace = Trace("Fase 9: extra", grammar_from("S -> a"), {}, ["única nota"])
         self.assertTrue(format_trace(trace).endswith("Conclusión de la fase:\núnica nota"))
 
     def test_lab7_details_are_not_hidden(self):
-        for detail in ("Nuevo símbolo inicial: S0", "S0 -> ε", "U_0", "U_1", "X6", "Variables auxiliares creadas: X1, X2, X3, X4, X5, X6"):
+        for detail in ("Se introduce S0 como nuevo símbolo inicial.", "S0 -> ε", "U_0", "U_1", "X6", "Variables auxiliares creadas: X1, X2, X3, X4, X5, X6"):
             with self.subTest(detail=detail):
                 self.assertIn(detail, self.lab7)
 
@@ -233,6 +235,96 @@ class CnfSectionsTest(unittest.TestCase):
         self.assertEqual(lines[0], "=" * 40)
         self.assertEqual(lines[2], "=" * 40)
         self.assertLessEqual(len(lines[1]), 40)
+
+
+class GrammarVersionLabelTest(unittest.TestCase):
+    def setUp(self):
+        self.english_grammar = load("english.txt")
+        self.lab7_grammar = load("test_lab7.txt")
+        _, self.english_traces = all_traces("english.txt")
+        self.lab7_cnf, self.lab7_traces = all_traces("test_lab7.txt")
+        self.english = format_traces(self.english_traces, original=self.english_grammar)
+        self.lab7 = format_traces(self.lab7_traces, original=self.lab7_grammar)
+
+    def test_original_grammar_is_g0(self):
+        text = format_original_grammar(self.english_grammar)
+        self.assertTrue(text.startswith(banner("GRAMÁTICA ORIGINAL — G0")))
+        self.assertIn(format_grammar(self.english_grammar), text)
+        self.assertTrue(text.endswith("|V| = 8   |Σ| = 21   |R| = 30\nSímbolo inicial: S"))
+
+    def test_original_grammar_is_shown_before_transformations(self):
+        text = format_original_grammar(self.lab7_grammar)
+        self.assertIn("S -> 0 A 0 | 1 B 1 | B B\nA -> C\nB -> S | A\nC -> S | ε", text)
+        self.assertNotIn("S0", text)
+
+    def test_each_phase_builds_next_version(self):
+        for phase in range(6):
+            with self.subTest(phase=phase):
+                block = self.lab7.split(PHASE_BANNERS[phase], 1)[1]
+                if phase < 5:
+                    block = block.split(PHASE_BANNERS[phase + 1], 1)[0]
+                self.assertRegex(block, rf"\n\d+\. Construir G{phase + 1}\n")
+                self.assertIn(f"Gramática resultante G{phase + 1} (", block)
+                self.assertNotIn(f"Construir G{phase}\n", block)
+
+    def test_english_states_every_unchanged_version(self):
+        for phase in range(6):
+            with self.subTest(phase=phase):
+                self.assertRegex(self.english, rf"Construir G{phase + 1}\n\n +Resultado:\n +G{phase + 1} = G{phase}\n")
+
+    def test_english_phase_zero_concludes_g1_equals_g0(self):
+        block = self.english.split(banner(PHASE_BANNERS[0]), 1)[1].split(banner(PHASE_BANNERS[1]), 1)[0]
+        self.assertIn("No es necesario introducir un nuevo símbolo inicial.", block)
+        self.assertTrue(block.rstrip().endswith("\n\nG1 = G0"))
+
+    def test_equality_is_not_repeated_when_note_already_states_it(self):
+        block = self.english.split(PHASE_BANNERS[1], 1)[1].split(PHASE_BANNERS[2], 1)[0]
+        conclusion = block.split("Conclusión de la fase:", 1)[1]
+        self.assertEqual(conclusion.count("G2 = G1"), 1)
+
+    def test_lab7_phase_zero_changes_g0(self):
+        block = self.lab7.split(PHASE_BANNERS[0], 1)[1].split(PHASE_BANNERS[1], 1)[0]
+        self.assertIn("Se introduce S0 como nuevo símbolo inicial.", block)
+        self.assertIn("G1 ≠ G0", block)
+        self.assertNotIn("G1 = G0", block)
+        self.assertIn("Gramática resultante G1 (|V| = 5   |Σ| = 2   |R| = 9   Inicial: S0):\n\n   S0 -> S", block)
+
+    def test_comparison_uses_grammar_objects(self):
+        unchanged = Trace("Fase 0: x", self.english_grammar, {}, ["nota"])
+        changed = Trace("Fase 0: x", self.lab7_grammar, {}, ["nota"])
+        self.assertIn("G1 = G0", format_trace(unchanged, previous=load("english.txt")))
+        self.assertIn("G1 ≠ G0", format_trace(changed, previous=self.english_grammar))
+        self.assertNotIn("G1 = G0", format_trace(unchanged))
+        self.assertNotIn("G1 ≠ G0", format_trace(unchanged))
+
+    def test_algorithm_notes_are_relabeled_for_presentation(self):
+        self.assertEqual(relabel_note("N = ∅ ⇒ G1 = G0", 1), "N = ∅ ⇒ G2 = G1")
+        self.assertEqual(relabel_note("Símbolos inútiles eliminados: {C, S} ⇒ G3", 3), "Símbolos inútiles eliminados: {C, S} ⇒ G4")
+        self.assertEqual(relabel_note("L(G) = ∅ ⇒ G3 conserva solo el inicial S", 3), "L(G) = ∅ ⇒ G4 conserva solo el inicial S")
+
+    def test_relabel_never_touches_user_symbols(self):
+        self.assertEqual(relabel_note("G1 es anulable ⇒ G10 conservará la producción-ε", 0), "G1 es anulable ⇒ G10 conservará la producción-ε")
+        self.assertEqual(relabel_note("Variables no generadoras eliminadas: {G1}", 3), "Variables no generadoras eliminadas: {G1}")
+        self.assertEqual(relabel_note("X ⇒ G1_0 se usa", 4), "X ⇒ G1_0 se usa")
+
+    def test_trace_notes_themselves_are_unchanged(self):
+        self.assertEqual(self.english_traces[1].notes, ["N = ∅ ⇒ G1 = G0"])
+
+    def test_conclusions_summary_uses_new_labels(self):
+        summary = format_conclusions(self.english_traces)
+        self.assertIn("N = ∅ ⇒ G2 = G1", summary)
+        self.assertIn("Ningún terminal acompañado ⇒ G5 = G4", summary)
+
+    def test_final_cnf_is_g6(self):
+        self.assertTrue(format_cnf_grammar(self.lab7_cnf, "G6").startswith(banner("GRAMÁTICA FINAL EN CNF — G6")))
+        self.assertEqual(
+            format_cnf_validation(self.lab7_cnf, cnf_violations(self.lab7_cnf), "G6"),
+            f"{banner('VALIDACIÓN DE CNF')}\n\n✓ G6 está en Forma Normal de Chomsky.\n  24 producciones válidas",
+        )
+
+    def test_last_phase_result_is_final_cnf(self):
+        self.assertIs(self.lab7_traces[-1].result, self.lab7_cnf)
+        self.assertIn("20. Construir G6", self.lab7)
 
 
 if __name__ == "__main__":

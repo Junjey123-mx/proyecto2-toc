@@ -11,6 +11,7 @@ EMPTY_GRAMMAR = "(sin producciones)"
 BANNER_WIDTH = 40
 NOT_APPLICABLE = "No aplica."
 PHASE_PATTERN = re.compile(r"^Fase (\d+):")
+NOTE_LABEL_PATTERN = re.compile(r"⇒ G(\d+)\b(?: = G(\d+)\b)?")
 PHASE_TITLES = {
     0: "NUEVO SÍMBOLO INICIAL",
     1: "ELIMINACIÓN DE ε",
@@ -73,6 +74,35 @@ def banner(title):
     return "\n".join([rule, title.center(BANNER_WIDTH).rstrip(), rule])
 
 
+def grammar_version(index):
+    return f"G{index}"
+
+
+def relabel_note(note, number):
+    if not number:
+        return note
+
+    def shift(match):
+        current, previous = match.groups()
+        text = f"⇒ {grammar_version(int(current) + 1)}"
+        return text if previous is None else f"{text} = {grammar_version(int(previous) + 1)}"
+
+    return NOTE_LABEL_PATTERN.sub(shift, note)
+
+
+def format_original_grammar(grammar):
+    return "\n".join(
+        [
+            banner(f"GRAMÁTICA ORIGINAL — {grammar_version(0)}"),
+            "",
+            *grammar_lines(grammar),
+            "",
+            f"|V| = {len(grammar.variables)}   |Σ| = {len(grammar.terminals)}   |R| = {len(grammar.productions)}",
+            f"Símbolo inicial: {grammar.start_symbol}",
+        ]
+    )
+
+
 def last_value(rows, column):
     return rows[-1][column] if rows else frozenset()
 
@@ -80,8 +110,8 @@ def last_value(rows, column):
 def start_symbol_result(tables):
     row = tables["Símbolo inicial"][0]
     if row["Se creó"] == "sí":
-        return f"Nuevo símbolo inicial: {row['Inicial nuevo']}"
-    return f"Se conserva {row['Inicial anterior']} como símbolo inicial."
+        return f"Se introduce {row['Inicial nuevo']} como nuevo símbolo inicial."
+    return "No es necesario introducir un nuevo símbolo inicial."
 
 
 def nullable_result(tables):
@@ -191,18 +221,40 @@ def step_body(layout, trace, show_tables):
     return body, result
 
 
-def grammar_step_body(trace, number):
-    label = f"Gramática resultante G{number}" if number is not None else "Gramática resultante"
-    return [[f"{label} ({format_grammar_summary(trace.result)}):"], grammar_lines(trace.result)]
+def version_comparison(version, previous_version, trace, previous):
+    if previous is None or previous_version is None:
+        return None
+    relation = "=" if trace.result == previous else "≠"
+    return f"{version} {relation} {previous_version}"
 
 
-def conclusion_lines(trace, shown_results):
+def grammar_step_body(trace, version, comparison):
+    label = f"Gramática resultante {version}" if version else "Gramática resultante"
+    body = []
+    if comparison:
+        body.append(["Resultado:", comparison])
+    body.append([f"{label} ({format_grammar_summary(trace.result)}):"])
+    body.append(grammar_lines(trace.result))
+    return body
+
+
+def conclusion_lines(trace, number, shown_results, comparison):
     notes = trace.notes
-    return [note for index, note in enumerate(notes) if index == len(notes) - 1 or note not in shown_results]
+    lines = [
+        relabel_note(note, number)
+        for index, note in enumerate(notes)
+        if index == len(notes) - 1 or note not in shown_results
+    ]
+    if comparison and "=" in comparison and "≠" not in comparison and not any(comparison in line for line in lines):
+        lines.extend(["", comparison])
+    return lines
 
 
-def format_phase(trace, steps, show_tables=True, show_grammar=True):
+def format_phase(trace, steps, show_tables=True, show_grammar=True, previous=None):
     number = phase_number(trace)
+    version = grammar_version(number + 1) if number is not None else None
+    previous_version = grammar_version(number) if number is not None else None
+    comparison = version_comparison(version, previous_version, trace, previous)
     title = f"FASE {number} — {PHASE_TITLES[number]}" if number in PHASE_TITLES else trace.phase.upper()
     sections = []
     shown_results = set()
@@ -211,31 +263,39 @@ def format_phase(trace, steps, show_tables=True, show_grammar=True):
         shown_results.add(result)
         sections.append(format_step(next(steps), layout.title, body))
     if show_grammar:
-        grammar_title = f"Construir G{number}" if number is not None else "Construir la gramática resultante"
-        sections.append(format_step(next(steps), grammar_title, grammar_step_body(trace, number)))
-    conclusion = conclusion_lines(trace, shown_results)
+        grammar_title = f"Construir {version}" if version else "Construir la gramática resultante"
+        sections.append(format_step(next(steps), grammar_title, grammar_step_body(trace, version, comparison)))
+    conclusion = conclusion_lines(trace, number, shown_results, comparison)
     if conclusion:
         sections.append("\n".join(["Conclusión de la fase:", *conclusion]))
     return f"{banner(title)}\n\n" + "\n\n\n".join(sections)
 
 
-def format_trace(trace, show_tables=True, show_grammar=True):
-    return format_phase(trace, count(1), show_tables, show_grammar)
+def format_trace(trace, show_tables=True, show_grammar=True, previous=None):
+    return format_phase(trace, count(1), show_tables, show_grammar, previous)
 
 
-def format_traces(traces, show_tables=True, show_grammar=True):
+def format_traces(traces, show_tables=True, show_grammar=True, original=None):
     steps = count(1)
-    return "\n\n".join(format_phase(trace, steps, show_tables, show_grammar) for trace in traces)
+    phases = []
+    previous = original
+    for trace in traces:
+        phases.append(format_phase(trace, steps, show_tables, show_grammar, previous))
+        previous = trace.result
+    return "\n\n".join(phases)
 
 
 def format_conclusions(traces):
-    return "\n".join(f"{trace.phase}: {trace.notes[-1]}" for trace in traces if trace.notes)
+    return "\n".join(
+        f"{trace.phase}: {relabel_note(trace.notes[-1], phase_number(trace))}" for trace in traces if trace.notes
+    )
 
 
-def format_cnf_grammar(grammar):
+def format_cnf_grammar(grammar, version=None):
+    title = f"GRAMÁTICA FINAL EN CNF — {version}" if version else "GRAMÁTICA FINAL EN CNF"
     return "\n".join(
         [
-            banner("GRAMÁTICA FINAL EN CNF"),
+            banner(title),
             "",
             f"|V| = {len(grammar.variables)}",
             f"|Σ| = {len(grammar.terminals)}",
@@ -247,13 +307,14 @@ def format_cnf_grammar(grammar):
     )
 
 
-def format_cnf_check(grammar, violations):
+def format_cnf_check(grammar, violations, version=None):
     if not violations:
-        return f"✓ Gramática en CNF\n{INDENT}{len(grammar.productions)} producciones válidas"
+        verdict = f"✓ {version} está en Forma Normal de Chomsky." if version else "✓ Gramática en CNF"
+        return f"{verdict}\n{INDENT}{len(grammar.productions)} producciones válidas"
     lines = [f"✗ La gramática no está en CNF ({len(violations)} producciones inválidas)"]
     lines.extend(f"{INDENT}{production_text(production)}: {reason}" for production, reason in violations)
     return "\n".join(lines)
 
 
-def format_cnf_validation(grammar, violations):
-    return f"{banner('VALIDACIÓN DE CNF')}\n\n{format_cnf_check(grammar, violations)}"
+def format_cnf_validation(grammar, violations, version=None):
+    return f"{banner('VALIDACIÓN DE CNF')}\n\n{format_cnf_check(grammar, violations, version)}"
