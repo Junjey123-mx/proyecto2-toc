@@ -3,7 +3,7 @@ import unittest
 from src.algorithms.simplification.epsilon import eliminate_epsilon, expand_variants, find_nullable
 from src.algorithms.simplification.start_symbol import add_new_start_symbol
 from src.model.production import Production
-from tests.grammar_helpers import grammar_from, language, load, rules
+from tests.grammar_helpers import EXPRESSION_GRAMMAR_LINES, grammar_from, language, load, rules
 
 
 class NullableTest(unittest.TestCase):
@@ -106,6 +106,32 @@ class EliminateEpsilonTest(unittest.TestCase):
         grammar = load("test_corto_p3.txt")
         result, _ = eliminate_epsilon(grammar)
         self.assertEqual(language(result, 6), language(grammar, 6) - {()})
+
+
+class LiteralETerminalTest(unittest.TestCase):
+    def test_literal_e_does_not_make_variables_nullable(self):
+        grammar = grammar_from(*EXPRESSION_GRAMMAR_LINES)
+        nullable, rows = find_nullable(grammar)
+        self.assertEqual(nullable, frozenset())
+        self.assertNotIn("X", nullable)
+        self.assertNotIn("Y", nullable)
+        self.assertEqual(rows[-1]["Conjunto N"], frozenset())
+
+    def test_literal_e_keeps_grammar_unchanged_in_phase_one(self):
+        grammar = grammar_from(*EXPRESSION_GRAMMAR_LINES)
+        result, trace = eliminate_epsilon(grammar)
+        self.assertIs(result, grammar)
+        self.assertEqual(trace.notes, ["N = ∅ ⇒ G1 = G0"])
+
+    def test_epsilon_symbol_and_literal_e_stay_distinct(self):
+        grammar = grammar_from("S -> A", "A -> ε | e")
+        self.assertIn("e", grammar.terminals)
+        self.assertNotIn("ε", grammar.terminals)
+        self.assertEqual(grammar.productions_for("A"), (Production("A", ()), Production("A", ("e",))))
+        nullable, rows = find_nullable(grammar)
+        self.assertEqual(nullable, {"A", "S"})
+        base_rows = [row for row in rows if row["Iteración"] == "Base"]
+        self.assertEqual([(row["Nuevo"], row["Regla aplicada"]) for row in base_rows], [("A", Production("A", ()))])
 
 
 if __name__ == "__main__":

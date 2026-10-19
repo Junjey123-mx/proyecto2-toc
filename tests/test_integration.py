@@ -9,11 +9,12 @@ from src.algorithms.chomsky.validator import is_cnf
 from src.algorithms.cyk.parser import benchmark_cyk, parse_cyk
 from src.algorithms.cyk.table import build_production_indexes
 from src.algorithms.simplification.simplify import simplify
-from src.input.grammar_parser import parse_grammar_file
+from src.input.grammar_parser import parse_grammar_file, parse_grammar_lines
 from src.input.sentence_parser import parse_sentence
+from src.model.production import Production
 from src.output.formatter import format_cyk_table, format_elapsed_ns, format_result, format_vocabulary_warnings
 from src.output.tree_formatter import format_parse_tree
-from tests.grammar_helpers import GRAMMARS_DIRECTORY, PROJECT_GRAMMARS
+from tests.grammar_helpers import EXPRESSION_GRAMMAR_LINES, GRAMMARS_DIRECTORY, PROJECT_GRAMMARS
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -659,6 +660,72 @@ class DirectModeCompatibilityTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0)
         self.assertIn("Tokens: ['the', 'cat', 'drinks', 'the', 'beer']", completed.stdout)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
+
+
+class SymbolicGrammarIntegrationTest(unittest.TestCase):
+    def setUp(self):
+        self.original = parse_grammar_lines(enumerate(EXPRESSION_GRAMMAR_LINES, start=1)).grammar
+        simplified, self.simplification_traces = simplify(self.original)
+        self.cnf, self.cnf_traces = to_cnf(simplified)
+
+    def test_phase_zero_introduces_fresh_start_symbol(self):
+        trace = self.simplification_traces[0]
+        new_start = self.cnf.start_symbol
+        self.assertNotEqual(new_start, "E")
+        self.assertNotIn(new_start, self.original.variables)
+        self.assertIn(Production(new_start, ("E",)), trace.result.productions)
+        self.assertEqual(trace.tables["Condiciones"][0]["Cumple"], "sí")
+
+    def test_phase_one_finds_no_nullable_variables(self):
+        trace = self.simplification_traces[1]
+        self.assertEqual(trace.tables["Anulables"][-1]["Conjunto N"], frozenset())
+        self.assertEqual(trace.notes, ["N = ∅ ⇒ G1 = G0"])
+
+    def test_phase_four_wraps_every_accompanied_symbolic_terminal(self):
+        wrappers = {row["Terminal"]: row["Envoltorio"] for row in self.cnf_traces[0].tables["Envoltorios"]}
+        self.assertEqual(set(wrappers), {"+", "*", "(", ")"})
+        for terminal, wrapper in wrappers.items():
+            with self.subTest(terminal=terminal):
+                self.assertNotIn(wrapper, self.original.variables)
+                self.assertEqual(self.cnf.productions_for(wrapper), (Production(wrapper, (terminal,)),))
+
+    def test_final_grammar_is_cnf_and_keeps_terminals(self):
+        self.assertTrue(is_cnf(self.cnf))
+        self.assertIn(Production("F", ("id",)), self.cnf.productions)
+        self.assertIn(Production("X", ("e",)), self.cnf.productions)
+        self.assertIn(Production("Y", ("e",)), self.cnf.productions)
+        terminal_index, _ = build_production_indexes(self.cnf)
+        self.assertEqual(set(terminal_index), {"+", "*", "e", "(", ")", "id"})
+
+    def test_cyk_accepts_derivable_sentences(self):
+        for sentence in ("id e e", "( id e e ) e e", "id e + id e e", "id * id e e"):
+            with self.subTest(sentence=sentence):
+                result = parse_cyk(self.cnf, parse_sentence(sentence))
+                self.assertTrue(result.accepted)
+                self.assertIsNotNone(result.parse_tree)
+
+    def test_cyk_rejects_sentences_without_literal_e(self):
+        for sentence in ("id", "id e", "( id ) e e", "+ id e e"):
+            with self.subTest(sentence=sentence):
+                self.assertFalse(parse_cyk(self.cnf, parse_sentence(sentence)).accepted)
+
+
+class ManualSymbolicGrammarSubprocessTest(unittest.TestCase):
+    def test_option_ten_builds_complete_symbolic_grammar(self):
+        stdin = "10\n" + "\n".join(EXPRESSION_GRAMMAR_LINES) + "\nFIN\nid e e\nid\n\n\n0\n"
+        completed = run_cli("--menu", stdin=stdin)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("Traceback", completed.stdout + completed.stderr)
+        original = completed.stdout.split("GRAMÁTICA ORIGINAL — G0", 1)[1].split("FASE 0", 1)[0]
+        self.assertIn("\n".join(EXPRESSION_GRAMMAR_LINES), original)
+        self.assertIn("|V| = 5   |Σ| = 6   |R| = 8", original)
+        self.assertIn("Símbolo inicial: E", original)
+        self.assertNotIn("F -> (\n", original)
+        validation = completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[1]
+        self.assertIn("Tokens: ['id', 'e', 'e']", validation)
+        self.assertIn("Resultado: SÍ pertenece al lenguaje.", validation)
+        self.assertIn("Resultado: NO pertenece al lenguaje.", validation)
+        self.assertIn("✓ G6 está en Forma Normal de Chomsky.", completed.stdout)
 
 
 if __name__ == "__main__":

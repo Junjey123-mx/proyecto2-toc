@@ -15,6 +15,15 @@ PROJECT_GRAMMARS = (
 )
 
 
+EXPRESSION_GRAMMAR_LINES = (
+    "E -> T X",
+    "X -> + T X | e",
+    "T -> F Y",
+    "Y -> * F Y | e",
+    "F -> ( E ) | id",
+)
+
+
 def grammar_from(*lines):
     return parse_grammar_lines(enumerate(lines, start=1)).grammar
 

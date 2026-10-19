@@ -1,9 +1,11 @@
+import tempfile
 import unittest
 from pathlib import Path
 
 from src.input.grammar_parser import parse_grammar_file, parse_grammar_lines
 from src.input.grammar_validator import GrammarSyntaxError
 from src.model.production import Production
+from tests.grammar_helpers import EXPRESSION_GRAMMAR_LINES
 
 GRAMMARS_DIRECTORY = Path(__file__).resolve().parent.parent / "grammars"
 
@@ -115,6 +117,65 @@ class GrammarParserTest(unittest.TestCase):
         with self.assertRaises(GrammarSyntaxError) as context:
             parse_text("S -> a", "S A -> b")
         self.assertEqual(context.exception.line_number, 2)
+
+
+class SymbolicGrammarTest(unittest.TestCase):
+    def setUp(self):
+        self.grammar = parse_text(*EXPRESSION_GRAMMAR_LINES).grammar
+
+    def test_expression_grammar_components(self):
+        self.assertEqual(self.grammar.start_symbol, "E")
+        self.assertEqual(self.grammar.variables, {"E", "X", "T", "Y", "F"})
+        self.assertEqual(self.grammar.terminals, {"+", "*", "e", "(", ")", "id"})
+        self.assertEqual(len(self.grammar.productions), 8)
+
+    def test_expression_grammar_productions(self):
+        self.assertEqual(
+            set(self.grammar.productions),
+            {
+                Production("E", ("T", "X")),
+                Production("X", ("+", "T", "X")),
+                Production("X", ("e",)),
+                Production("T", ("F", "Y")),
+                Production("Y", ("*", "F", "Y")),
+                Production("Y", ("e",)),
+                Production("F", ("(", "E", ")")),
+                Production("F", ("id",)),
+            },
+        )
+        self.assertEqual(
+            self.grammar.productions_for("F"), (Production("F", ("(", "E", ")")), Production("F", ("id",)))
+        )
+
+    def test_literal_e_is_a_terminal_not_epsilon(self):
+        self.assertIn("e", self.grammar.terminals)
+        self.assertNotIn("ε", self.grammar.terminals)
+        self.assertFalse(any(production.is_epsilon for production in self.grammar.productions))
+        self.assertIn(Production("X", ("e",)), self.grammar.productions)
+        self.assertIn(Production("Y", ("e",)), self.grammar.productions)
+
+    def test_parentheses_are_literal_terminals(self):
+        grammar = parse_text("S -> ( A ) | id", "A -> a").grammar
+        self.assertEqual(
+            grammar.productions,
+            (Production("S", ("(", "A", ")")), Production("S", ("id",)), Production("A", ("a",))),
+        )
+        self.assertEqual(grammar.terminals, {"(", ")", "id", "a"})
+        self.assertEqual(grammar.variables, {"S", "A"})
+
+    def test_operators_and_multi_character_terminals_do_not_warn(self):
+        self.assertEqual(parse_text(*EXPRESSION_GRAMMAR_LINES).warnings, ())
+
+    def test_file_and_lines_build_the_same_grammar(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "expresiones.txt"
+            path.write_text("\n".join(EXPRESSION_GRAMMAR_LINES) + "\n", encoding="utf-8")
+            from_file = parse_grammar_file(path).grammar
+        self.assertEqual(from_file, self.grammar)
+        self.assertEqual(
+            (from_file.start_symbol, from_file.variables, from_file.terminals, from_file.productions),
+            (self.grammar.start_symbol, self.grammar.variables, self.grammar.terminals, self.grammar.productions),
+        )
 
 
 if __name__ == "__main__":
