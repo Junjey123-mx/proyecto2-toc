@@ -1,3 +1,5 @@
+"""Fase 1: calcula las variables anulables y elimina las producciones-ε."""
+
 from itertools import combinations
 
 from src.algorithms.grammar_tools import lhs_closure, rebuild
@@ -10,6 +12,8 @@ NULLABLE_COLUMNS = ("Iteración", "Regla aplicada", "Nuevo", "Conjunto N")
 
 
 def find_nullable(grammar):
+    """Encuentra todas las variables que derivan ε mediante una búsqueda de punto fijo."""
+    # Una variable es anulable si algún RHS suyo es totalmente anulable; un terminal nunca lo es.
     return lhs_closure(
         grammar.productions,
         lambda symbol, known: symbol in known,
@@ -19,12 +23,15 @@ def find_nullable(grammar):
 
 
 def nullable_positions(rhs, nullable):
+    """Devuelve las posiciones de las ocurrencias anulables; las repeticiones cuentan por separado."""
     return [index for index, symbol in enumerate(rhs) if symbol in nullable]
 
 
 def expand_variants(rhs, nullable):
+    """Devuelve cada RHS obtenido al conservar o quitar cada ocurrencia anulable."""
     positions = nullable_positions(rhs, nullable)
     variants = []
+    # m ocurrencias anulables generan 2^m variantes; los duplicados se eliminan después.
     for removed_count in range(len(positions) + 1):
         for removed in combinations(reversed(positions), removed_count):
             variants.append(tuple(symbol for index, symbol in enumerate(rhs) if index not in removed))
@@ -32,6 +39,10 @@ def expand_variants(rhs, nullable):
 
 
 def eliminate_epsilon(grammar):
+    """Reemplaza cada producción por sus variantes y elimina las producciones-ε.
+
+    Solo el inicial puede conservar ε, y únicamente si ε pertenece al lenguaje.
+    """
     start = grammar.start_symbol
     nullable, nullable_rows = find_nullable(grammar)
     tables = {"Anulables": nullable_rows}
@@ -48,6 +59,7 @@ def eliminate_epsilon(grammar):
             productions.append(production)
             continue
         generated = [Production(production.lhs, rhs) for rhs in expand_variants(production.rhs, nullable)]
+        # Solo el inicial conserva ε; la Fase 0 garantiza que no aparece en ningún RHS.
         kept = tuple(
             dict.fromkeys(
                 variant for variant in generated if not variant.is_epsilon or variant.lhs == start

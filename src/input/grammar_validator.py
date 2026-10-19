@@ -1,12 +1,16 @@
+"""Validación sintáctica, línea por línea, del formato de gramáticas."""
+
 from dataclasses import dataclass
 
 ARROW = "->"
 ALTERNATIVE_SEPARATOR = "|"
 COMMENT_PREFIX = "#"
+# Solo 'ε' (o la palabra 'epsilon') es la cadena vacía; una 'e' literal es un terminal normal.
 EPSILON_SYMBOLS = frozenset({"ε", "epsilon"})
 
 
 class GrammarSyntaxError(ValueError):
+    """Error de sintaxis asociado a una línea del archivo cuando se conoce."""
     def __init__(self, reason, line_number=None):
         message = reason if line_number is None else f"Line {line_number}: {reason}"
         super().__init__(message)
@@ -16,12 +20,14 @@ class GrammarSyntaxError(ValueError):
 
 @dataclass(frozen=True)
 class ValidatedRule:
+    """Una línea válida: su LHS y sus alternativas como tuplas de símbolos."""
     line_number: int
     lhs: str
     alternatives: tuple[tuple[str, ...], ...]
 
 
 def validate_grammar_lines(lines):
+    """Valida cada línea de producción y omite líneas vacías y comentarios '#'."""
     rules = []
     for line_number, text in lines:
         content = text.strip()
@@ -34,6 +40,10 @@ def validate_grammar_lines(lines):
 
 
 def validate_rule(line_number, content):
+    """Valida una producción de la CFG y devuelve sus alternativas.
+
+    Los símbolos se separan solo por espacios: '(', ')', '+', '*' e 'id' son terminales normales.
+    """
     if content.count(ARROW) != 1:
         raise GrammarSyntaxError(f"expected exactly one '{ARROW}'", line_number)
     lhs_text, rhs_text = content.split(ARROW)

@@ -1,8 +1,14 @@
+"""Índices de búsqueda y tabla de programación dinámica de CYK."""
+
 from src.model.backpointer import BinaryBackPointer, TerminalBackPointer
 from src.model.production import Production
 
 
 def build_production_indexes(grammar):
+    """Indexa A -> a por token y A -> B C por (B, C) para búsquedas directas.
+
+    Los valores conservan el orden de las producciones; el recorrido es determinista.
+    """
     terminal_index = {}
     binary_index = {}
     for production in grammar.productions:
@@ -18,22 +24,31 @@ def build_production_indexes(grammar):
 
 
 def build_cyk_table(grammar, tokens):
+    """Llena T[i][j] con cada variable que deriva tokens[i..j] y su backpointer.
+
+    Solo se guarda el primer testigo; la tabla siempre se construye completa.
+    """
     terminal_index, binary_index = build_production_indexes(grammar)
     size = len(tokens)
+    # Un diccionario independiente por celda; solo se usa el triángulo superior i <= j.
     table = [[{} for _ in range(size)] for _ in range(size)]
+    # La diagonal se llena con las variables que producen cada token; uno desconocido queda vacío.
     for position, token in enumerate(tokens):
         for variable in terminal_index.get(token, ()):
             table[position][position].setdefault(variable, TerminalBackPointer(token))
+    # Los spans crecen por longitud, así ambas mitades de cada corte ya están calculadas.
     for length in range(2, size + 1):
         for start in range(size - length + 1):
             end = start + length - 1
             cell = table[start][end]
+            # Se prueba cada corte: [start..split] + [split+1..end].
             for split in range(start, end):
                 left_cell = table[start][split]
                 right_cell = table[split + 1][end]
                 for left in sorted(left_cell):
                     for right in sorted(right_cell):
                         for parent in binary_index.get((left, right), ()):
+                            # setdefault conserva el primer testigo, lo que hace determinista el parse tree.
                             cell.setdefault(
                                 parent,
                                 BinaryBackPointer(Production(parent, (left, right)), split, left, right),

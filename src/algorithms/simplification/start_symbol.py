@@ -1,3 +1,5 @@
+"""Fase 0: introduce un nuevo símbolo inicial cuando la CNF lo requiere."""
+
 from src.algorithms.grammar_tools import productions_using, rebuild
 from src.algorithms.simplification.epsilon import find_nullable
 from src.model.production import Production
@@ -13,12 +15,18 @@ def new_start_base(start_symbol):
 
 
 def add_new_start_symbol(grammar):
+    """Agrega S0 -> S cuando el símbolo inicial aparece en algún RHS.
+
+    El inicial de la CNF no puede estar en ningún RHS para poder conservar S0 -> ε.
+    """
     start = grammar.start_symbol
     occurrences = productions_using(grammar, start)
     nullable, nullable_rows = find_nullable(grammar)
     is_nullable = start in nullable
     nullable_evidence = next((row["Regla aplicada"] for row in nullable_rows if row["Nuevo"] == start), "—")
+    # Un inicial anulable no obliga a crear S0: S -> ε es válido si S no está en ningún RHS.
     created = bool(occurrences)
+    # Se compara contra V ∪ Σ; si S0 ya existe se usa S0_1.
     new_start = fresh_variable(new_start_base(start), grammar.variables | grammar.terminals) if created else start
 
     tables = {

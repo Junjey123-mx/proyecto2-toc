@@ -1,3 +1,5 @@
+"""Punto de entrada: preparación de la gramática, menú interactivo y validación con CYK."""
+
 import argparse
 import sys
 from dataclasses import dataclass
@@ -101,6 +103,7 @@ INVALID_OPTION = "Opción inválida. Intente nuevamente."
 
 @dataclass(frozen=True)
 class PreparedGrammar:
+    """Gramática preparada una vez por sesión: original, trazas, CNF y vocabulario de CYK."""
     source: str
     original: Grammar
     warnings: tuple
@@ -112,6 +115,7 @@ class PreparedGrammar:
 
 
 def positive_runs(text):
+    """Tipo de argparse para --runs: solo enteros ≥ 1."""
     try:
         runs = int(text)
     except ValueError:
@@ -137,6 +141,7 @@ def build_argument_parser():
 
 
 def parse_arguments(argv=None):
+    """Analiza los argumentos; `grammar_given` distingue un --grammar explícito del valor por defecto."""
     arguments = build_argument_parser().parse_args(argv)
     arguments.grammar_given = arguments.grammar is not None
     if not arguments.grammar_given:
@@ -145,10 +150,12 @@ def parse_arguments(argv=None):
 
 
 def prepare_grammar(path):
+    """Carga un archivo de gramática y lo prepara para validar."""
     return prepare_parsed_grammar(parse_grammar_file(path), display_path(path))
 
 
 def prepare_parsed_grammar(parsed, source):
+    """Ejecuta una sola vez la simplificación y la CNF, e indexa el vocabulario de CYK."""
     simplified, simplification_traces = simplify(parsed.grammar)
     cnf, cnf_traces = to_cnf(simplified)
     terminal_index, _ = build_production_indexes(cnf)
@@ -160,11 +167,13 @@ def prepare_parsed_grammar(parsed, source):
         cnf=cnf,
         violations=tuple(cnf_violations(cnf)),
         vocabulary=frozenset(terminal_index),
+        # Variables agregadas por la conversión, detectadas por diferencia de conjuntos y nunca por nombre.
         synthetic_variables=cnf.variables - parsed.grammar.variables,
     )
 
 
 def display_path(path):
+    """Devuelve la ruta relativa al directorio actual cuando es posible."""
     try:
         return str(path.resolve().relative_to(Path.cwd()))
     except ValueError:
@@ -178,6 +187,7 @@ def format_parse_warnings(warnings):
 
 
 def format_preparation(prepared, show_trace, show_cnf):
+    """Muestra G0, las trazas o conclusiones de las fases y las secciones de CNF."""
     sections = [f"{BANNER}\n\nGramática: {prepared.source}", format_original_grammar(prepared.original)]
     if prepared.warnings:
         sections.append(format_parse_warnings(prepared.warnings))
@@ -191,12 +201,17 @@ def format_preparation(prepared, show_trace, show_cnf):
 
 
 def format_sentence_report(prepared, tokens, runs, show_table):
+    """Valida una oración y muestra tokens, resultado, tiempo, árbol y tabla.
+
+    Los tokens desconocidos se avisan, pero igual pasan por CYK.
+    """
     result = parse_cyk(prepared.cnf, tokens)
     token_block = [format_tokens(tokens)]
     warnings = format_vocabulary_warnings(tokens, prepared.vocabulary)
     if warnings:
         token_block.append(warnings)
     timing_block = [format_elapsed_ns(result.elapsed_ns)]
+    # El benchmark es información extra; la decisión siempre la toma parse_cyk.
     if runs > 1:
         timing_block.append(format_benchmark_ns(benchmark_cyk(prepared.cnf, tokens, runs), runs))
     blocks = [REPORT_HEADER, "\n".join(token_block), format_result(result.accepted), "\n".join(timing_block)]
@@ -208,6 +223,7 @@ def format_sentence_report(prepared, tokens, runs, show_table):
 
 
 def interactive_loop(prepared, runs, show_table, prompt=PROMPT):
+    """Modo directo: valida oraciones hasta recibir una línea vacía."""
     while True:
         print(SEPARATOR)
         print(prompt)
@@ -220,6 +236,7 @@ def interactive_loop(prepared, runs, show_table, prompt=PROMPT):
 
 
 def format_menu():
+    """Muestra el menú de gramáticas con numeración continua entre secciones."""
     lines = [MENU_BANNER]
     number = 1
     for title, options in GRAMMAR_MENU_SECTIONS:
@@ -236,12 +253,14 @@ def format_menu():
 
 
 def bundled_grammar_path(choice):
+    """Asocia un número del menú con un archivo de gramática incluido, o devuelve None."""
     if choice.isdigit() and 1 <= int(choice) <= len(GRAMMAR_MENU_OPTIONS):
         return GRAMMAR_MENU_OPTIONS[int(choice) - 1][1]
     return None
 
 
 def prepare_menu_choice(choice):
+    """Prepara la gramática elegida en el menú, o devuelve None si la opción es inválida."""
     path = bundled_grammar_path(choice)
     if path is not None:
         return prepare_grammar(path)
@@ -251,6 +270,10 @@ def prepare_menu_choice(choice):
 
 
 def read_manual_lines():
+    """Lee producciones hasta que el usuario escribe FIN; devuelve líneas numeradas.
+
+    Las líneas pasan por el mismo parser que los archivos de gramática.
+    """
     print(MANUAL_INSTRUCTIONS)
     print()
     lines = []
@@ -262,6 +285,7 @@ def read_manual_lines():
 
 
 def run_grammar_session(prepared, arguments):
+    """Sesión en modo directo; devuelve False si la gramática no está en CNF."""
     print(format_preparation(prepared, arguments.trace, arguments.show_cnf))
     print()
     if prepared.violations:
@@ -271,6 +295,10 @@ def run_grammar_session(prepared, arguments):
 
 
 def menu_validation_loop(prepared, runs, show_table):
+    """Modo menú: un Enter valida ε y dos Enter seguidos regresan al menú.
+
+    Toda entrada no vacía es una oración; no hay comandos reservados.
+    """
     previous_input_was_empty = False
     while True:
         print(SEPARATOR)
@@ -289,6 +317,7 @@ def menu_validation_loop(prepared, runs, show_table):
 
 
 def run_menu_grammar_session(prepared, arguments):
+    """Muestra el procedimiento completo y luego inicia la validación de oraciones."""
     print(format_preparation(prepared, show_trace=True, show_cnf=True))
     print()
     if prepared.violations:
@@ -301,6 +330,7 @@ def run_menu_grammar_session(prepared, arguments):
 
 
 def menu_session(arguments):
+    """Ejecuta la sesión interactiva de selección de gramáticas hasta 0, EOF o Ctrl+C."""
     while True:
         print(format_menu())
         choice = input("> ").strip()
@@ -321,10 +351,12 @@ def menu_session(arguments):
 
 
 def uses_menu(arguments):
+    """Modo menú salvo que se use --grammar; con stdin redirigido requiere --menu."""
     return not arguments.grammar_given and (arguments.menu or sys.stdin.isatty())
 
 
 def main(argv=None):
+    """Punto de entrada del programa; devuelve el código de salida."""
     arguments = parse_arguments(argv)
     try:
         if uses_menu(arguments):

@@ -1,3 +1,5 @@
+"""Formato de terminal para tokens, resultados, tiempos y tablas CYK."""
+
 from src.utils.notation import EMPTY_SET, set_text
 
 NANOSECONDS_PER_MICROSECOND = 1_000
@@ -14,6 +16,7 @@ def format_result(accepted):
 
 
 def format_duration_ns(nanoseconds):
+    """Formatea una duración en microsegundos y en segundos."""
     microseconds = nanoseconds / NANOSECONDS_PER_MICROSECOND
     seconds = nanoseconds / NANOSECONDS_PER_SECOND
     return f"{microseconds:.3f} µs  ({seconds:.9f} s)"
@@ -28,10 +31,12 @@ def format_benchmark_ns(median_ns, runs):
 
 
 def unknown_tokens(tokens, vocabulary):
+    """Devuelve los tokens ausentes del vocabulario, una vez cada uno, en orden de aparición."""
     return [token for token in dict.fromkeys(tokens) if token not in vocabulary]
 
 
 def format_vocabulary_warnings(tokens, vocabulary):
+    """Un aviso por token desconocido; el vocabulario sale de las reglas A -> a, no de Σ."""
     return "\n".join(
         f'Aviso: "{token}" no pertenece al vocabulario de la gramática.'
         for token in unknown_tokens(tokens, vocabulary)
@@ -39,6 +44,7 @@ def format_vocabulary_warnings(tokens, vocabulary):
 
 
 def format_cyk_table(table, tokens):
+    """Lista las celdas del triángulo superior por longitud de span, solo con nombres de variables."""
     if not tokens:
         return f"Tabla CYK: {EMPTY_SET} (frase vacía)"
     lines = ["Tabla CYK:"]

@@ -1,3 +1,5 @@
+"""Coordina las fases de simplificación 0–3."""
+
 from src.algorithms.grammar_tools import run_phases
 from src.algorithms.simplification.epsilon import eliminate_epsilon
 from src.algorithms.simplification.start_symbol import add_new_start_symbol
@@ -8,4 +10,5 @@ SIMPLIFICATION_PHASES = (add_new_start_symbol, eliminate_epsilon, eliminate_unit
 
 
 def simplify(grammar):
+    """Ejecuta las Fases 0–3 en orden y devuelve (gramática, trazas)."""
     return run_phases(grammar, SIMPLIFICATION_PHASES)

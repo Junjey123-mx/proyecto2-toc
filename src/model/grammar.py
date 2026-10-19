@@ -1,3 +1,5 @@
+"""Modelo de gramática libre de contexto."""
+
 from dataclasses import dataclass
 
 from src.model.production import Production
@@ -5,6 +7,10 @@ from src.model.production import Production
 
 @dataclass(frozen=True)
 class Grammar:
+    """Representación inmutable de una gramática libre de contexto G = (V, Σ, R, S).
+
+    Valida sus invariantes al crearse y elimina producciones duplicadas.
+    """
     start_symbol: str
     variables: frozenset[str]
     terminals: frozenset[str]
@@ -17,6 +23,7 @@ class Grammar:
         self._check_invariants()
 
     def _check_invariants(self):
+        """Asegura S ∈ V, V ∩ Σ = ∅ y que toda producción use símbolos declarados."""
         if self.start_symbol not in self.variables:
             raise ValueError(f"Start symbol {self.start_symbol!r} is not a variable")
         shared_symbols = self.variables & self.terminals
@@ -33,4 +40,5 @@ class Grammar:
                 raise ValueError(f"Production uses undeclared symbols: {unknown_symbols}")
 
     def productions_for(self, variable):
+        """Devuelve las producciones de `variable` en orden de declaración."""
         return tuple(production for production in self.productions if production.lhs == variable)

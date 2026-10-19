@@ -1,3 +1,5 @@
+"""Utilidades de texto para símbolos, producciones y conjuntos."""
+
 EPSILON = "ε"
 EMPTY_SET = "∅"
 
@@ -11,6 +13,7 @@ def production_text(production):
 
 
 def set_text(symbols):
+    """Formatea un conjunto ordenado, o ∅ si está vacío."""
     if not symbols:
         return EMPTY_SET
     return "{" + ", ".join(sorted(symbols)) + "}"

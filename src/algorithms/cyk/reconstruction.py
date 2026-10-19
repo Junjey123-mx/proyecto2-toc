@@ -1,9 +1,15 @@
+"""Reconstrucción del parse tree a partir de los backpointers de CYK."""
+
 from src.model.backpointer import TerminalBackPointer
 from src.model.parse_node import EPSILON_TOKEN, ParseNode
 from src.model.production import Production
 
 
 def reconstruct_parse_tree(grammar, table, tokens):
+    """Reconstruye un parse tree válido desde los backpointers, o None si se rechaza.
+
+    El árbol es de la gramática CNF, así que pueden aparecer variables auxiliares.
+    """
     start = grammar.start_symbol
     if not tokens:
         if Production(start) in grammar.productions:
@@ -16,6 +22,7 @@ def reconstruct_parse_tree(grammar, table, tokens):
 
 
 def build_node(table, symbol, start, end):
+    """Expande recursivamente el backpointer de `symbol` sobre tokens[start..end]."""
     pointer = table[start][end][symbol]
     if isinstance(pointer, TerminalBackPointer):
         return ParseNode(symbol, pointer.token)

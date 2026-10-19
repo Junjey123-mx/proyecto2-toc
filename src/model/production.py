@@ -1,8 +1,11 @@
+"""Modelo de producción de una CFG."""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Production:
+    """Representa una producción A -> α de la CFG; un RHS vacío significa ε."""
     lhs: str
     rhs: tuple[str, ...] = ()
 

@@ -1,3 +1,5 @@
+"""Fase 4: aísla los terminales que aparecen en RHS de longitud ≥ 2."""
+
 from src.algorithms.grammar_tools import NO_VALUE, rebuild
 from src.model.production import Production
 from src.model.trace import Trace
@@ -11,10 +13,15 @@ def wrapper_base(terminal):
 
 
 def is_exact_wrapper(grammar, variable, terminal):
+    """Indica si `variable` tiene exactamente una producción: variable -> terminal."""
     return grammar.productions_for(variable) == (Production(variable, (terminal,)),)
 
 
 def choose_wrapper(grammar, terminal, taken):
+    """Devuelve el envoltorio de `terminal` y si fue reutilizado o creado.
+
+    Un envoltorio exacto existente se reutiliza; si no, se toma el primer nombre libre.
+    """
     for name in candidate_names(wrapper_base(terminal)):
         if name in grammar.variables and is_exact_wrapper(grammar, name, terminal):
             return name, "reutilizado"
@@ -23,12 +30,14 @@ def choose_wrapper(grammar, terminal, taken):
 
 
 def isolate_terminals(grammar):
+    """Reemplaza los terminales de los RHS largos por variables envoltorio U_a -> a."""
     wrappers = {}
     wrapper_rows = []
     production_rows = []
     productions = []
     created_productions = []
 
+    # Un envoltorio por terminal, compartido por todas las producciones que lo necesitan.
     def wrapper_for(terminal):
         if terminal not in wrappers:
             name, action = choose_wrapper(grammar, terminal, set(wrappers.values()))
@@ -39,6 +48,7 @@ def isolate_terminals(grammar):
         return wrappers[terminal]
 
     for production in grammar.productions:
+        # La CNF solo permite terminales en producciones de un símbolo A -> a.
         if len(production.rhs) < 2:
             productions.append(production)
             continue

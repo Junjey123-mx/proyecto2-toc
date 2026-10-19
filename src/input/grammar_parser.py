@@ -1,3 +1,5 @@
+"""Construye objetos Grammar a partir de líneas validadas."""
+
 from dataclasses import dataclass
 
 from src.input.grammar_loader import load_grammar_lines
@@ -8,6 +10,7 @@ from src.model.production import Production
 
 @dataclass(frozen=True)
 class GrammarWarning:
+    """Aviso no fatal sobre un símbolo sospechoso en la gramática."""
     line_number: int
     symbol: str
     reason: str
@@ -15,15 +18,21 @@ class GrammarWarning:
 
 @dataclass(frozen=True)
 class ParseResult:
+    """Gramática construida junto con los avisos encontrados."""
     grammar: Grammar
     warnings: tuple[GrammarWarning, ...]
 
 
 def parse_grammar_file(path):
+    """Carga y analiza un archivo de gramática."""
     return parse_grammar_lines(load_grammar_lines(path))
 
 
 def parse_grammar_lines(lines):
+    """Construye una Grammar desde líneas numeradas, de un archivo o de entrada manual.
+
+    Los símbolos de LHS son variables y el resto terminales; el primer LHS es el inicial.
+    """
     rules = validate_grammar_lines(lines)
     variables = dict.fromkeys(rule.lhs for rule in rules)
     terminals = {}
@@ -31,11 +40,13 @@ def parse_grammar_lines(lines):
     warnings = {}
     for rule in rules:
         for alternative in rule.alternatives:
+            # Solo ε/epsilon se convierte en RHS vacío; 'e' sigue siendo terminal.
             rhs = () if alternative[0] in EPSILON_SYMBOLS else alternative
             for symbol in rhs:
                 if symbol in variables:
                     continue
                 terminals.setdefault(symbol)
+                # Un símbolo en mayúscula sin producciones queda como terminal, pero se avisa (p. ej. 'Np' vs 'NP').
                 if looks_like_variable(symbol) and symbol not in warnings:
                     warnings[symbol] = GrammarWarning(
                         rule.line_number,
@@ -48,4 +59,5 @@ def parse_grammar_lines(lines):
 
 
 def looks_like_variable(symbol):
+    """Heurística de avisos: un símbolo que empieza con mayúscula suele ser una variable."""
     return symbol[0].isupper()

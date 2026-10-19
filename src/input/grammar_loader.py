@@ -1,11 +1,18 @@
+"""Lectura de archivos fuente de gramáticas."""
+
 from pathlib import Path
 
 
 class GrammarLoadError(Exception):
+    """Se lanza cuando un archivo de gramática no existe o no se puede leer."""
     pass
 
 
 def load_grammar_lines(path):
+    """Devuelve (número_de_línea, texto) por cada línea, conservando la numeración original.
+
+    Se mantienen las líneas vacías y comentarios; el validador decide qué omitir.
+    """
     source = Path(path)
     if not source.exists():
         raise GrammarLoadError(f"Grammar file not found: {source}")

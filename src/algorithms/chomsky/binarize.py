@@ -1,3 +1,5 @@
+"""Fase 5: divide los RHS de más de dos símbolos en producciones binarias."""
+
 from src.algorithms.grammar_tools import rebuild
 from src.model.production import Production
 from src.model.trace import Trace
@@ -8,6 +10,10 @@ AUXILIARY_PREFIX = "X"
 
 
 def binarize(grammar):
+    """Divide A -> B1 … Bk (k > 2) en una cadena de producciones binarias.
+
+    Cada producción recibe k - 2 auxiliares nuevas, así se preserva el lenguaje.
+    """
     taken = set(grammar.variables | grammar.terminals)
     next_index = 1
     rows = []
@@ -15,6 +21,7 @@ def binarize(grammar):
     created = []
 
     def new_variable():
+        """Devuelve el siguiente nombre X<n> libre y lo reserva."""
         nonlocal next_index
         name, index = fresh_indexed_variable(AUXILIARY_PREFIX, taken, next_index)
         taken.add(name)
@@ -28,6 +35,7 @@ def binarize(grammar):
             productions.append(production)
             continue
         auxiliaries = [new_variable() for _ in range(len(rhs) - 2)]
+        # A -> B1 X1, X1 -> B2 X2, …, X(k-2) -> B(k-1) Bk.
         heads = (production.lhs, *auxiliaries)
         tails = (*auxiliaries, rhs[-1])
         chain = tuple(

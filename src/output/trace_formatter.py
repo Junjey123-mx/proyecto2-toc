@@ -1,3 +1,5 @@
+"""Presentación académica de las trazas: pasos numerados y etiquetas G0–G6."""
+
 import re
 from dataclasses import dataclass
 from itertools import count
@@ -23,6 +25,7 @@ PHASE_TITLES = {
 
 
 def format_value(value, nested=False):
+    """Formatea el valor de una celda (producciones, conjuntos o tuplas)."""
     if isinstance(value, Production):
         return production_text(value)
     if isinstance(value, (set, frozenset)):
@@ -36,6 +39,7 @@ def format_value(value, nested=False):
 
 
 def format_table(rows):
+    """Formatea filas como una tabla de texto alineada."""
     if not rows:
         return [EMPTY_TABLE]
     headers = list(rows[0])
@@ -49,6 +53,7 @@ def format_table(rows):
 
 
 def grammar_lines(grammar):
+    """Agrupa las producciones por LHS con el inicial primero."""
     alternatives = {}
     for production in grammar.productions:
         alternatives.setdefault(production.lhs, []).append(rhs_text(production.rhs))
@@ -70,6 +75,7 @@ def format_grammar_summary(grammar):
 
 
 def banner(title):
+    """Devuelve un banner centrado de 40 caracteres."""
     rule = "=" * BANNER_WIDTH
     return "\n".join([rule, title.center(BANNER_WIDTH).rstrip(), rule])
 
@@ -79,6 +85,10 @@ def grammar_version(index):
 
 
 def relabel_note(note, number):
+    """Desplaza las etiquetas de las notas para que la fase k muestre G(k+1).
+
+    Solo cambia patrones '⇒ Gk' de fases ≥ 1, nunca símbolos del usuario.
+    """
     if not number:
         return note
 
@@ -91,6 +101,7 @@ def relabel_note(note, number):
 
 
 def format_original_grammar(grammar):
+    """Muestra la gramática de entrada como G0."""
     return "\n".join(
         [
             banner(f"GRAMÁTICA ORIGINAL — {grammar_version(0)}"),
@@ -107,6 +118,7 @@ def last_value(rows, column):
     return rows[-1][column] if rows else frozenset()
 
 
+# Constructores de resultados: cada uno obtiene la línea 'Resultado:' de un paso desde las tablas.
 def start_symbol_result(tables):
     row = tables["Símbolo inicial"][0]
     if row["Se creó"] == "sí":
@@ -153,11 +165,13 @@ def binarization_result(tables):
 
 @dataclass(frozen=True)
 class StepLayout:
+    """Título, tablas de origen y constructor de resultado opcional de un paso numerado."""
     title: str
     tables: tuple
     result: object = None
 
 
+# Pasos de cada fase, asociados a las tablas que su Trace realmente produce.
 PHASE_LAYOUTS = {
     0: (
         StepLayout("Verificar las condiciones del símbolo inicial", ("Condiciones",)),
@@ -208,6 +222,7 @@ def format_step(number, title, body):
 
 
 def step_body(layout, trace, show_tables):
+    """Construye el cuerpo de un paso; una tabla ausente se muestra como 'No aplica.'."""
     present = [name for name in layout.tables if name in trace.tables]
     body = []
     if show_tables:
@@ -222,6 +237,7 @@ def step_body(layout, trace, show_tables):
 
 
 def version_comparison(version, previous_version, trace, previous):
+    """Devuelve 'Gk = Gk-1' o 'Gk ≠ Gk-1' comparando los objetos Grammar."""
     if previous is None or previous_version is None:
         return None
     relation = "=" if trace.result == previous else "≠"
@@ -239,6 +255,7 @@ def grammar_step_body(trace, version, comparison):
 
 
 def conclusion_lines(trace, number, shown_results, comparison):
+    """Devuelve las notas no mostradas como resultado; la nota final siempre se conserva."""
     notes = trace.notes
     lines = [
         relabel_note(note, number)
@@ -251,6 +268,7 @@ def conclusion_lines(trace, number, shown_results, comparison):
 
 
 def format_phase(trace, steps, show_tables=True, show_grammar=True, previous=None):
+    """Muestra una fase: banner, pasos numerados, gramática resultante y conclusión."""
     number = phase_number(trace)
     version = grammar_version(number + 1) if number is not None else None
     previous_version = grammar_version(number) if number is not None else None
@@ -276,6 +294,10 @@ def format_trace(trace, show_tables=True, show_grammar=True, previous=None):
 
 
 def format_traces(traces, show_tables=True, show_grammar=True, original=None):
+    """Muestra todas las fases con numeración continua de pasos.
+
+    `original` es G0 y habilita la comparación 'G1 = G0'.
+    """
     steps = count(1)
     phases = []
     previous = original
@@ -286,12 +308,14 @@ def format_traces(traces, show_tables=True, show_grammar=True, original=None):
 
 
 def format_conclusions(traces):
+    """Devuelve una línea de resumen por fase, usada sin --trace."""
     return "\n".join(
         f"{trace.phase}: {relabel_note(trace.notes[-1], phase_number(trace))}" for trace in traces if trace.notes
     )
 
 
 def format_cnf_grammar(grammar, version=None):
+    """Muestra la sección de la gramática final en CNF."""
     title = f"GRAMÁTICA FINAL EN CNF — {version}" if version else "GRAMÁTICA FINAL EN CNF"
     return "\n".join(
         [
@@ -308,6 +332,7 @@ def format_cnf_grammar(grammar, version=None):
 
 
 def format_cnf_check(grammar, violations, version=None):
+    """Devuelve el veredicto CNF o la lista de violaciones."""
     if not violations:
         verdict = f"✓ {version} está en Forma Normal de Chomsky." if version else "✓ Gramática en CNF"
         return f"{verdict}\n{INDENT}{len(grammar.productions)} producciones válidas"

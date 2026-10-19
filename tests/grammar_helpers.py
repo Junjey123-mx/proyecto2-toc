@@ -17,6 +17,7 @@ PROJECT_GRAMMARS = (
 )
 
 
+# Gramática de regresión: 'e' es terminal y los paréntesis son símbolos literales.
 EXPRESSION_GRAMMAR_LINES = (
     "E -> T X",
     "X -> + T X | e",
@@ -58,6 +59,10 @@ def rules(grammar):
 
 
 def language(grammar, max_length):
+    """Devuelve las palabras de longitud ≤ max_length derivadas desde el inicial.
+
+    Punto fijo acotado, usado como oráculo independiente de equivalencia de lenguajes.
+    """
     derived = {variable: set() for variable in grammar.variables}
     changed = True
     while changed:

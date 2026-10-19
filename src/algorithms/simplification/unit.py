@@ -1,3 +1,5 @@
+"""Fase 2: elimina las producciones unitarias A -> B mediante el cierre unitario."""
+
 from collections import deque
 
 from src.algorithms.grammar_tools import NO_VALUE, rebuild, variable_order
@@ -8,10 +10,12 @@ PHASE = "Fase 2: eliminación de producciones unitarias"
 
 
 def is_unit(production, variables):
+    """Una producción unitaria tiene un solo símbolo en el RHS y ese símbolo es una variable."""
     return len(production.rhs) == 1 and production.rhs[0] in variables
 
 
 def unit_successors(grammar):
+    """Asocia cada variable con las que alcanza mediante una producción unitaria."""
     successors = {}
     for production in grammar.productions:
         if is_unit(production, grammar.variables):
@@ -20,6 +24,10 @@ def unit_successors(grammar):
 
 
 def unit_reach(successors, variable):
+    """Devuelve las variables alcanzables desde `variable` usando solo unitarias.
+
+    Incluye a la propia variable, así (A, A) siempre es un par unitario.
+    """
     reached = dict.fromkeys([variable])
     pending = deque([variable])
     while pending:
@@ -32,6 +40,10 @@ def unit_reach(successors, variable):
 
 
 def eliminate_unit(grammar):
+    """Elimina las producciones unitarias usando el cierre transitivo.
+
+    Por cada par unitario (A, B), A recibe todas las producciones no unitarias de B.
+    """
     units = [production for production in grammar.productions if is_unit(production, grammar.variables)]
     tables = {"Unitarias": [{"Producción": production, "¿Unitaria?": "sí"} for production in units]}
     if not units:
@@ -64,6 +76,7 @@ def eliminate_unit(grammar):
         for variable in lhs_order
     ]
 
+    # Se transfieren las no unitarias de cada par unitario; los ciclos no requieren un caso especial.
     transfer_rows = []
     productions = []
     for variable in lhs_order:
@@ -82,5 +95,6 @@ def eliminate_unit(grammar):
         "Se eliminan todas las producciones unitarias y los duplicados.",
         f"{len(units)} producciones unitarias eliminadas ⇒ G2 sin producciones unitarias",
     ]
+    # Las variables que quedan inalcanzables se conservan aquí; la Fase 3 las elimina.
     result = rebuild(grammar, productions)
     return result, Trace(PHASE, result, tables, notes)

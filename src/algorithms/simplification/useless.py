@@ -1,3 +1,5 @@
+"""Fase 3: elimina símbolos inútiles (primero no generadores, después inalcanzables)."""
+
 from src.algorithms.grammar_tools import FIXED_POINT, NO_VALUE, lhs_closure, rebuild, variable_order
 from src.model.trace import Trace
 from src.utils.notation import set_text
@@ -7,6 +9,7 @@ CLOSURE_COLUMNS = ("Iteración", "Regla/origen", "Nuevos", "Conjunto acumulado")
 
 
 def find_generating(grammar):
+    """Encuentra por punto fijo las variables que derivan una cadena terminal (incluida ε)."""
     return lhs_closure(
         grammar.productions,
         lambda symbol, known: symbol in grammar.terminals or symbol in known,
@@ -16,6 +19,7 @@ def find_generating(grammar):
 
 
 def find_reachable(grammar):
+    """Encuentra las variables alcanzables desde el inicial, una capa por iteración."""
     iteration_column, rule_column, new_column, set_column = CLOSURE_COLUMNS
     reached = dict.fromkeys([grammar.start_symbol])
     rows = [
@@ -50,6 +54,7 @@ def find_reachable(grammar):
 
 
 def removal_rows(grammar, kept_variables, reason):
+    """Describe cada producción eliminada por mencionar una variable descartada."""
     rows = []
     for production in grammar.productions:
         offending = [
@@ -63,6 +68,7 @@ def removal_rows(grammar, kept_variables, reason):
 
 
 def keep_productions(grammar, kept_variables):
+    """Conserva las producciones cuyo LHS y variables del RHS sobreviven."""
     return tuple(
         production
         for production in grammar.productions
@@ -72,10 +78,12 @@ def keep_productions(grammar, kept_variables):
 
 
 def remove_non_generating(grammar):
+    """Fase 3a: elimina las variables no generadoras y toda producción que las use."""
     start = grammar.start_symbol
     generating, rows = find_generating(grammar)
     order = variable_order(grammar)
     removed = [variable for variable in order if variable not in generating]
+    # El inicial se conserva sin producciones cuando L(G) = ∅.
     kept = generating | {start}
     removed_productions = removal_rows(grammar, generating, "no generadora")
     result = rebuild(grammar, keep_productions(grammar, generating), variables=kept)
@@ -83,6 +91,7 @@ def remove_non_generating(grammar):
 
 
 def remove_unreachable(grammar):
+    """Fase 3b: elimina las variables que no son alcanzables desde el inicial."""
     reachable, rows = find_reachable(grammar)
     order = variable_order(grammar)
     removed = [variable for variable in order if variable not in reachable]
@@ -92,10 +101,16 @@ def remove_unreachable(grammar):
 
 
 def eliminate_useless(grammar):
+    """Elimina variables inútiles filtrando primero generadoras y después alcanzables.
+
+    Σ no se modifica; un terminal sin usos simplemente no aparece en ninguna producción.
+    """
     start = grammar.start_symbol
     after_generating, generating_rows, non_generating, generating_removed, empty_language = remove_non_generating(
         grammar
     )
+    # Las alcanzables se calculan después de quitar las no generadoras,
+    # porque esa eliminación puede dejar inalcanzables a otras variables.
     result, reachable_rows, unreachable, reachable_removed = remove_unreachable(after_generating)
 
     tables = {
