@@ -21,9 +21,10 @@ from src.output.formatter import (
     format_vocabulary_warnings,
 )
 from src.output.trace_formatter import (
-    format_cnf_check,
+    banner,
+    format_cnf_grammar,
+    format_cnf_validation,
     format_conclusions,
-    format_grammar,
     format_grammar_summary,
     format_traces,
 )
@@ -65,22 +66,21 @@ BANNER = "\n".join(["=" * 40, "CYK PARSER — TOC".center(40).rstrip(), "=" * 40
 MENU_BANNER = "\n".join(["=" * 40, "SELECCIÓN DE GRAMÁTICA".center(40).rstrip(), "=" * 40])
 SEPARATOR = "-" * 40
 PROMPT = "Ingrese una oración (vacío para salir):"
-MENU_SENTENCE_PROMPT = "Ingrese una cadena (Enter: ε · Enter dos veces: menú):"
+MENU_SENTENCE_PROMPT = "Cadena:"
 VALIDATION_BANNER = "\n".join(
     [
-        "=" * 40,
-        "VALIDACIÓN DE CADENAS".center(40).rstrip(),
-        "=" * 40,
+        banner("VALIDACIÓN DE CADENAS"),
         "",
-        "Escriba una oración/cadena.",
+        "Ingrese una oración o cadena para evaluarla con CYK.",
         "",
-        "Enter una vez:",
-        "  valida la cadena vacía ε",
+        "• Enter una vez:",
+        "  validar la cadena vacía ε.",
         "",
-        "Enter dos veces consecutivas:",
-        "  regresa al menú de gramáticas",
+        "• Enter dos veces consecutivas:",
+        "  regresar al menú de gramáticas.",
     ]
 )
+REPORT_HEADER = "\n".join(["-" * 40, "CADENA ANALIZADA", "-" * 40])
 RETURN_HINT = "Presione Enter nuevamente para volver al menú,\no escriba otra cadena para continuar."
 INVALID_OPTION = "Opción inválida. Intente nuevamente."
 
@@ -179,31 +179,26 @@ def format_preparation(prepared, show_trace, show_cnf):
     traces = list(prepared.traces)
     sections.append(format_traces(traces) if show_trace else format_conclusions(traces))
     if show_cnf:
-        sections.append(
-            f"Gramática CNF final ({format_grammar_summary(prepared.cnf)}):\n{format_grammar(prepared.cnf)}"
-        )
-    sections.append(format_cnf_check(prepared.cnf, list(prepared.violations)))
-    return "\n\n".join(sections)
+        sections.append(format_cnf_grammar(prepared.cnf))
+    sections.append(format_cnf_validation(prepared.cnf, list(prepared.violations)))
+    return "\n\n\n".join(sections)
 
 
 def format_sentence_report(prepared, tokens, runs, show_table):
     result = parse_cyk(prepared.cnf, tokens)
-    lines = [format_tokens(tokens)]
+    token_block = [format_tokens(tokens)]
     warnings = format_vocabulary_warnings(tokens, prepared.vocabulary)
     if warnings:
-        lines.append(warnings)
-    lines.append(format_result(result.accepted))
-    lines.append(format_elapsed_ns(result.elapsed_ns))
+        token_block.append(warnings)
+    timing_block = [format_elapsed_ns(result.elapsed_ns)]
     if runs > 1:
-        lines.append(format_benchmark_ns(benchmark_cyk(prepared.cnf, tokens, runs), runs))
+        timing_block.append(format_benchmark_ns(benchmark_cyk(prepared.cnf, tokens, runs), runs))
+    blocks = [REPORT_HEADER, "\n".join(token_block), format_result(result.accepted), "\n".join(timing_block)]
     if result.accepted:
-        lines.append("")
-        lines.append("Parse tree:")
-        lines.append(format_parse_tree(result.parse_tree, prepared.synthetic_variables))
+        blocks.append(f"Parse tree:\n\n{format_parse_tree(result.parse_tree, prepared.synthetic_variables)}")
     if show_table:
-        lines.append("")
-        lines.append(format_cyk_table(result.table, tokens))
-    return "\n".join(lines)
+        blocks.append(format_cyk_table(result.table, tokens))
+    return "\n\n".join(blocks)
 
 
 def interactive_loop(prepared, runs, show_table, prompt=PROMPT):
@@ -290,6 +285,8 @@ def run_menu_grammar_session(prepared, arguments):
     print()
     if prepared.violations:
         return
+    print()
+    print()
     print(VALIDATION_BANNER)
     print()
     menu_validation_loop(prepared, arguments.runs, arguments.show_table)

@@ -229,7 +229,7 @@ class CliSubprocessTest(unittest.TestCase):
             "CYK PARSER — TOC",
             "Gramática: grammars/english.txt",
             "|V| = 8   |Σ| = 21   |R| = 30",
-            "✓ Gramática en CNF (validador: 30 producciones válidas)",
+            "✓ Gramática en CNF\n  30 producciones válidas",
             "Tokens: ['she', 'eats', 'a', 'cake']",
             "Resultado: SÍ pertenece al lenguaje.",
             "Tiempo de esta validación: ",
@@ -264,7 +264,7 @@ class CliSubprocessTest(unittest.TestCase):
     def test_show_cnf(self):
         completed = run_cli("--show-cnf", "--grammar", "grammars/test_guia.txt", stdin="\n")
         self.assert_clean_exit(completed)
-        self.assertIn("Gramática CNF", completed.stdout)
+        self.assertIn("GRAMÁTICA FINAL EN CNF", completed.stdout)
         self.assertIn("S0 -> ε | U_a X1 | U_a U_b | U_a A | a", completed.stdout)
         self.assertIn("✓ Gramática en CNF", completed.stdout)
 
@@ -272,7 +272,7 @@ class CliSubprocessTest(unittest.TestCase):
         completed = run_cli("--trace", stdin="\n")
         self.assert_clean_exit(completed)
         for phase in range(6):
-            self.assertIn(f"Fase {phase}:", completed.stdout)
+            self.assertIn(f"FASE {phase} — ", completed.stdout)
         self.assertIn("Anulables", completed.stdout)
         self.assertIn("3a Generadores", completed.stdout)
         self.assertIn("Gramática resultante", completed.stdout)
@@ -364,8 +364,8 @@ class CliSubprocessTest(unittest.TestCase):
         completed = run_cli("--trace", "--show-cnf", "--show-table", "--runs", "2", stdin="she eats\n\n")
         self.assert_clean_exit(completed)
         for expected in (
-            "Fase 5: binarizar",
-            "Gramática CNF",
+            "FASE 5 — BINARIZACIÓN",
+            "GRAMÁTICA FINAL EN CNF",
             "Tabla CYK:",
             "Benchmark (mediana de 2 corridas): ",
             "Resultado: SÍ pertenece al lenguaje.",
@@ -388,7 +388,7 @@ class MenuSubprocessTest(unittest.TestCase):
         self.assertIn("SELECCIÓN DE GRAMÁTICA", completed.stdout)
         self.assertIn("Gramática: grammars/english.txt", completed.stdout)
         self.assertIn("Resultado: SÍ pertenece al lenguaje.", completed.stdout)
-        self.assertIn("Enter dos veces: menú", completed.stdout)
+        self.assertIn("Enter dos veces consecutivas", completed.stdout)
         self.assertEqual(completed.stdout.count("SELECCIÓN DE GRAMÁTICA"), 2)
 
     def test_selects_long_rules(self):
@@ -460,8 +460,8 @@ class MenuSubprocessTest(unittest.TestCase):
         stdin = "10\n# demo\nS -> a S b | a b c\n\nC -> c\nFIN\na b c\na a b c b\na b\n\n\n0\n"
         completed = self.run_menu(stdin, "--trace", "--show-cnf")
         for phase in range(6):
-            self.assertIn(f"Fase {phase}:", completed.stdout)
-        self.assertIn("Gramática CNF", completed.stdout)
+            self.assertIn(f"FASE {phase} — ", completed.stdout)
+        self.assertIn("GRAMÁTICA FINAL EN CNF", completed.stdout)
         self.assertIn("S0 -> ", completed.stdout)
         self.assertEqual(completed.stdout.count("Resultado: SÍ pertenece al lenguaje."), 2)
         self.assertEqual(completed.stdout.count("Resultado: NO pertenece al lenguaje."), 2)
@@ -475,7 +475,7 @@ class MenuSubprocessTest(unittest.TestCase):
 
     def test_menu_applies_view_flags(self):
         completed = self.run_menu("1\nshe eats\n\n0\n", "--show-table", "--show-cnf", "--runs", "2")
-        self.assertIn("Gramática CNF", completed.stdout)
+        self.assertIn("GRAMÁTICA FINAL EN CNF", completed.stdout)
         self.assertIn("Tabla CYK:", completed.stdout)
         self.assertIn('[0,1] "she eats" = {S}', completed.stdout)
         self.assertIn("Benchmark (mediana de 2 corridas): ", completed.stdout)
@@ -551,7 +551,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
         completed = self.run_menu("2\n\n\n0\n")
         procedure = completed.stdout.split("VALIDACIÓN DE CADENAS", 1)[0]
         for phase in range(6):
-            self.assertIn(f"Fase {phase}:", procedure)
+            self.assertIn(f"FASE {phase} — ", procedure)
         for detail in (
             "  Condiciones",
             "  Anulables",
@@ -569,7 +569,7 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
 
     def test_menu_shows_cnf_and_check_before_validation(self):
         completed = self.run_menu("2\n\n\n0\n")
-        cnf = completed.stdout.index("Gramática CNF final")
+        cnf = completed.stdout.index("GRAMÁTICA FINAL EN CNF")
         check = completed.stdout.index("✓ Gramática en CNF")
         validation = completed.stdout.index("VALIDACIÓN DE CADENAS")
         self.assertLess(cnf, check)
@@ -579,13 +579,13 @@ class DemonstrationFlowSubprocessTest(unittest.TestCase):
     def test_menu_does_not_print_one_line_conclusions(self):
         completed = self.run_menu("1\n\n\n0\n")
         self.assertNotIn("Fase 0: nuevo símbolo inicial: ", completed.stdout)
-        self.assertEqual(completed.stdout.count("Fase 1: eliminación de producciones-ε"), 1)
+        self.assertEqual(completed.stdout.count("FASE 1 — ELIMINACIÓN DE ε"), 1)
 
     def test_validation_banner_explains_navigation(self):
         completed = self.run_menu("1\n\n\n0\n")
         validation = self.validation_section(completed)
-        self.assertIn("Enter una vez:\n  valida la cadena vacía ε", validation)
-        self.assertIn("Enter dos veces consecutivas:\n  regresa al menú de gramáticas", validation)
+        self.assertIn("• Enter una vez:\n  validar la cadena vacía ε.", validation)
+        self.assertIn("• Enter dos veces consecutivas:\n  regresar al menú de gramáticas.", validation)
 
     def test_first_enter_validates_epsilon_and_second_returns(self):
         completed = self.run_menu("2\n\n\n0\n")
